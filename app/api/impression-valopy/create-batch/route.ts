@@ -1,12 +1,32 @@
 import { NextResponse } from "next/server"
+
 import { getAuthenticatedAdmin } from "@/lib/auth/admin-access"
 import { createAdminClient } from "@/lib/supabase/admin"
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 type CreateBatchRequest = {
   startNumber?: number
   flyerCount?: number
-  batchName?: string
-  notes?: string
+}
+
+function formatNumber(value: number) {
+  return value.toString().padStart(4, "0")
+}
+
+function isNumberConflict(message: string) {
+  const normalizedMessage = message
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+
+  return (
+    normalizedMessage.includes("existe deja") ||
+    normalizedMessage.includes("existent deja") ||
+    normalizedMessage.includes("duplicate") ||
+    normalizedMessage.includes("unique")
+  )
 }
 
 export async function POST(request: Request) {
@@ -65,6 +85,16 @@ export async function POST(request: Request) {
       )
     }
 
+    const endNumber = startNumber + flyerCount - 1
+
+    /*
+      En mode production réelle, le serveur génère lui-même les libellés.
+      Les textes envoyés par le navigateur ne peuvent donc pas transformer
+      accidentellement un lot réel en lot de test.
+    */
+    const batchName = `PRODUCTION - Lot N° ${formatNumber(startNumber)} à N° ${formatNumber(endNumber)}`
+    const notes = "LOT REEL - IMPRESSION PRODUCTION VALOPY FINOANA"
+
     const supabase = createAdminClient()
 
     const { data, error } = await supabase.rpc(
@@ -73,13 +103,13 @@ export async function POST(request: Request) {
         p_campaign_id: campaignId,
         p_start_number: startNumber,
         p_flyer_count: flyerCount,
-        p_batch_name: body.batchName?.trim() || null,
-        p_notes: body.notes?.trim() || null,
+        p_batch_name: batchName,
+        p_notes: notes,
       }
     )
 
     if (error) {
-      const conflict = error.message.includes("existent déjà")
+      const conflict = isNumberConflict(error.message)
 
       return NextResponse.json(
         {
@@ -93,10 +123,17 @@ export async function POST(request: Request) {
 
     const batch = Array.isArray(data) ? data[0] : data
 
+    if (!batch) {
+      return NextResponse.json(
+        { error: "Le lot n’a pas été retourné après sa création." },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
       {
         success: true,
-        message: "Lot d’impression créé avec succès.",
+        message: "Lot réel d’impression créé avec succès.",
         batch,
       },
       { status: 201 }
@@ -105,7 +142,7 @@ export async function POST(request: Request) {
     console.error("Erreur create-batch :", error)
 
     return NextResponse.json(
-      { error: "Erreur interne lors de la création du lot." },
+      { error: "Erreur interne lors de la création du lot réel." },
       { status: 500 }
     )
   }

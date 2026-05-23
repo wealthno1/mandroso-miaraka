@@ -29,8 +29,6 @@ type ExistingBatch = {
 }
 
 type CreateBatchResponse = {
-  success?: boolean
-  message?: string
   batch?: BatchResult
   error?: string
 }
@@ -41,10 +39,15 @@ type ExistingBatchesResponse = {
 }
 
 export default function ImpressionValopyPage() {
-  // Les numéros 0001 à 0008 existent actuellement comme lots de test.
-  // Ne pas créer de nouveau lot sur ces numéros.
-  const [numeroDepart, setNumeroDepart] = useState("5")
-  const [nombreFlyers, setNombreFlyers] = useState("4")
+  /*
+    MODE RÉEL :
+    - Les lots tests ont été supprimés de la base.
+    - La première série réelle peut commencer à N° 0001.
+    - La quantité reste vide volontairement afin d'éviter une création accidentelle.
+  */
+  const [numeroDepart, setNumeroDepart] = useState("1")
+  const [nombreFlyers, setNombreFlyers] = useState("")
+  const [confirmationReelle, setConfirmationReelle] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [erreur, setErreur] = useState("")
@@ -72,6 +75,8 @@ export default function ImpressionValopyPage() {
       quantite <= 1000
     )
   }, [debut, quantite])
+
+  const lotPeutEtreCree = lotValide && confirmationReelle && !loading
 
   const chargerLotsExistants = useCallback(async () => {
     setChargementLots(true)
@@ -105,10 +110,10 @@ export default function ImpressionValopyPage() {
     void chargerLotsExistants()
   }, [chargerLotsExistants])
 
-  async function creerLot(event: FormEvent<HTMLFormElement>) {
+  async function creerLotReel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!lotValide || loading) return
+    if (!lotPeutEtreCree) return
 
     setLoading(true)
     setMessage("")
@@ -124,9 +129,8 @@ export default function ImpressionValopyPage() {
         body: JSON.stringify({
           startNumber: debut,
           flyerCount: quantite,
-          batchName: `TEST INTERFACE - Lot N° ${numeroFormate(debut)} à N° ${numeroFormate(fin)}`,
-          notes:
-            "DONNEE TEST - CREATION DEPUIS INTERFACE A SUPPRIMER AVANT IMPRESSION REELLE",
+          batchName: `PRODUCTION - Lot N° ${numeroFormate(debut)} à N° ${numeroFormate(fin)}`,
+          notes: "LOT REEL - IMPRESSION PRODUCTION VALOPY FINOANA",
         }),
       })
 
@@ -134,19 +138,20 @@ export default function ImpressionValopyPage() {
 
       if (!response.ok || !result.batch) {
         setErreur(
-          result.error || "Impossible de créer le lot d’impression."
+          result.error || "Impossible de créer le lot réel d’impression."
         )
         return
       }
 
       setLotCree(result.batch)
+      setConfirmationReelle(false)
       setMessage(
-        "Lot créé avec succès. Vous pouvez maintenant ouvrir son PDF numéroté."
+        "Lot réel enregistré avec succès. Ouvrez maintenant le PDF numéroté pour l’imprimer."
       )
 
       await chargerLotsExistants()
     } catch (error) {
-      console.error("Erreur création lot d’impression :", error)
+      console.error("Erreur création lot réel d’impression :", error)
       setErreur("Erreur de communication avec le serveur.")
     } finally {
       setLoading(false)
@@ -164,26 +169,25 @@ export default function ImpressionValopyPage() {
       </p>
 
       <form
-        onSubmit={creerLot}
+        onSubmit={creerLotReel}
         className="max-w-3xl rounded-2xl bg-white p-6 shadow"
       >
         <h2 className="mb-6 text-2xl font-bold">
           Préparer un lot d’impression
         </h2>
 
-        <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
-          <p className="font-bold">Mode test actuel</p>
+        <div className="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+          <p className="font-bold">Mode impression réelle</p>
           <p>
-            Les numéros N° 0001 à N° 0008 existent déjà comme lots de test.
-            Ne créez pas de nouveau lot sur cette plage. Retrouvez-les dans la
-            section « Lots d’impression existants » ci-dessous.
+            Les données tests ont été retirées. Les numéros créés ici seront
+            définitifs et rattachés à la campagne Valopy Finoana. Vérifiez la
+            plage de numéros et la quantité avant de confirmer.
           </p>
         </div>
 
         <div className="space-y-5">
           <div>
             <label className="mb-2 block font-medium">Campagne</label>
-
             <input
               type="text"
               value="Valopy Finoana — Iray Volana ho an’ny Tompo — 21 Jona 2026"
@@ -194,33 +198,37 @@ export default function ImpressionValopyPage() {
 
           <div>
             <label className="mb-2 block font-medium">
-              Premier numéro à imprimer
+              Premier numéro réel à imprimer
             </label>
-
             <input
               type="number"
               min="1"
               value={numeroDepart}
-              onChange={(event) => setNumeroDepart(event.target.value)}
+              onChange={(event) => {
+                setNumeroDepart(event.target.value)
+                setConfirmationReelle(false)
+              }}
               className="w-full rounded-lg border p-4"
             />
           </div>
 
           <div>
             <label className="mb-2 block font-medium">
-              Nombre de flyers à imprimer
+              Nombre réel de flyers à imprimer
             </label>
-
             <input
               type="number"
               min="2"
               max="1000"
               step="2"
               value={nombreFlyers}
-              onChange={(event) => setNombreFlyers(event.target.value)}
+              onChange={(event) => {
+                setNombreFlyers(event.target.value)
+                setConfirmationReelle(false)
+              }}
+              placeholder="Exemple : 100"
               className="w-full rounded-lg border p-4"
             />
-
             <p className="mt-2 text-sm text-gray-500">
               Saisir un nombre pair : 2 flyers correspondent à une feuille A4.
             </p>
@@ -229,9 +237,8 @@ export default function ImpressionValopyPage() {
 
         <div className="mt-8 rounded-xl bg-blue-50 p-5">
           <h3 className="mb-4 text-lg font-bold text-blue-900">
-            Résumé du lot
+            Résumé du lot réel
           </h3>
-
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-lg bg-white p-4">
               <p className="text-sm text-gray-500">Du numéro</p>
@@ -239,28 +246,43 @@ export default function ImpressionValopyPage() {
                 N° {numeroFormate(debut)}
               </p>
             </div>
-
             <div className="rounded-lg bg-white p-4">
               <p className="text-sm text-gray-500">Au numéro</p>
               <p className="text-2xl font-bold text-blue-900">
                 N° {numeroFormate(fin)}
               </p>
             </div>
-
             <div className="rounded-lg bg-white p-4">
               <p className="text-sm text-gray-500">Feuilles A4</p>
               <p className="text-2xl font-bold text-blue-900">
-                {nombrePages}
+                {nombrePages || "—"}
               </p>
             </div>
           </div>
         </div>
 
-        {!lotValide && (
+        {!lotValide && quantite > 0 && (
           <p className="mt-5 rounded-lg bg-red-50 p-4 text-red-700">
             Veuillez choisir un numéro positif et un nombre pair de flyers,
             sans dépasser 1000 flyers par lot.
           </p>
+        )}
+
+        {lotValide && (
+          <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-orange-900">
+            <input
+              type="checkbox"
+              checked={confirmationReelle}
+              onChange={(event) => setConfirmationReelle(event.target.checked)}
+              className="mt-1 h-5 w-5"
+            />
+            <span>
+              <strong>Je confirme la création réelle :</strong> je vais
+              enregistrer définitivement les enveloppes N°{" "}
+              {numeroFormate(debut)} à N° {numeroFormate(fin)}, soit{" "}
+              {quantite} flyers sur {nombrePages} feuilles A4.
+            </span>
+          </label>
         )}
 
         {erreur && (
@@ -278,9 +300,8 @@ export default function ImpressionValopyPage() {
         {lotCree && (
           <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-5">
             <h3 className="mb-3 font-bold text-green-800">
-              Lot enregistré dans la base
+              Lot réel enregistré dans la base
             </h3>
-
             <p className="text-green-800">
               Numéros créés :{" "}
               <strong>
@@ -288,12 +309,10 @@ export default function ImpressionValopyPage() {
                 {numeroFormate(lotCree.end_number)}
               </strong>
             </p>
-
             <p className="text-green-800">
               Flyers : <strong>{lotCree.flyer_count}</strong> — Feuilles A4 :{" "}
               <strong>{lotCree.page_count}</strong>
             </p>
-
             <a
               href={`/api/impression-valopy/pdf/${lotCree.batch_id}`}
               target="_blank"
@@ -302,7 +321,6 @@ export default function ImpressionValopyPage() {
             >
               Ouvrir le PDF numéroté
             </a>
-
             <p className="mt-3 text-sm text-green-700">
               L’ouverture du PDF ne crée pas de nouveaux numéros.
             </p>
@@ -311,15 +329,15 @@ export default function ImpressionValopyPage() {
 
         <button
           type="submit"
-          disabled={!lotValide || loading}
+          disabled={!lotPeutEtreCree}
           className="mt-6 rounded-xl bg-blue-600 px-6 py-4 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
         >
-          {loading ? "Création du lot..." : "Créer le lot test numéroté"}
+          {loading ? "Création du lot réel..." : "Créer le lot réel numéroté"}
         </button>
 
         <p className="mt-4 text-sm text-gray-500">
-          Le bouton enregistre de nouveaux numéros. Pour rouvrir un PDF déjà
-          généré, utilisez la liste des lots existants ci-dessous.
+          Cette action enregistre de nouveaux numéros réels. Pour rouvrir un
+          PDF déjà généré, utilisez la liste des lots existants ci-dessous.
         </p>
       </form>
 
@@ -332,7 +350,6 @@ export default function ImpressionValopyPage() {
               nouveaux numéros.
             </p>
           </div>
-
           <button
             type="button"
             onClick={() => void chargerLotsExistants()}
@@ -348,13 +365,11 @@ export default function ImpressionValopyPage() {
             Chargement des lots...
           </p>
         )}
-
         {erreurLots && (
           <p className="rounded-lg bg-red-50 p-4 text-red-700">
             {erreurLots}
           </p>
         )}
-
         {!chargementLots && !erreurLots && lotsExistants.length === 0 && (
           <p className="rounded-lg bg-gray-50 p-4 text-gray-600">
             Aucun lot d’impression enregistré.
@@ -363,44 +378,51 @@ export default function ImpressionValopyPage() {
 
         {!chargementLots && !erreurLots && lotsExistants.length > 0 && (
           <div className="space-y-4">
-            {lotsExistants.map((lot) => (
-              <div
-                key={lot.id}
-                className="rounded-xl border border-gray-200 p-4"
-              >
-                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                  <div>
-                    <p className="font-bold text-gray-900">
-                      N° {numeroFormate(lot.start_number)} à N°{" "}
-                      {numeroFormate(lot.end_number)}
-                    </p>
+            {lotsExistants.map((lot) => {
+              const notes = lot.notes?.toUpperCase() ?? ""
+              const estTest = notes.includes("TEST")
+              const estReel = notes.includes("LOT REEL")
 
-                    <p className="mt-1 text-sm text-gray-600">
-                      {lot.flyer_count} flyers — {lot.page_count} feuilles A4
-                    </p>
-
-                    <p className="mt-1 text-xs text-gray-500">
-                      {lot.batch_name}
-                    </p>
-
-                    {lot.notes?.includes("TEST") && (
-                      <span className="mt-2 inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
-                        LOT DE TEST
-                      </span>
-                    )}
+              return (
+                <div
+                  key={lot.id}
+                  className="rounded-xl border border-gray-200 p-4"
+                >
+                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                    <div>
+                      <p className="font-bold text-gray-900">
+                        N° {numeroFormate(lot.start_number)} à N°{" "}
+                        {numeroFormate(lot.end_number)}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {lot.flyer_count} flyers — {lot.page_count} feuilles A4
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {lot.batch_name}
+                      </p>
+                      {estReel && (
+                        <span className="mt-2 inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                          LOT RÉEL
+                        </span>
+                      )}
+                      {estTest && (
+                        <span className="mt-2 inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
+                          LOT DE TEST
+                        </span>
+                      )}
+                    </div>
+                    <a
+                      href={`/api/impression-valopy/pdf/${lot.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex justify-center rounded-xl bg-green-700 px-5 py-3 font-bold text-white transition hover:bg-green-800"
+                    >
+                      Ouvrir le PDF
+                    </a>
                   </div>
-
-                  <a
-                    href={`/api/impression-valopy/pdf/${lot.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex justify-center rounded-xl bg-green-700 px-5 py-3 font-bold text-white transition hover:bg-green-800"
-                  >
-                    Ouvrir le PDF
-                  </a>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </section>
