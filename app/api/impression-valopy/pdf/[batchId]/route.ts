@@ -154,7 +154,14 @@ const pdfDocument = createElement(ValopyFinoanaDocument, {
   templateData: templateBuffer,
 })
 
-    const pdfBuffer = await renderToBuffer(pdfDocument)
+/*
+  ValopyFinoanaDocument retourne bien un <Document> react-pdf racine.
+  Le cast corrige uniquement l'inférence TypeScript de renderToBuffer ;
+  il ne modifie pas le rendu PDF.
+*/
+const pdfBuffer = await renderToBuffer(
+  pdfDocument as unknown as Parameters<typeof renderToBuffer>[0]
+)
 
     const firstNumber = numbers[0]
     const lastNumber = numbers[numbers.length - 1]
