@@ -1,16 +1,32 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/login")
+  }
+
   return (
     <div className="flex min-h-screen">
       <aside className="w-72 bg-gray-900 p-6 text-white">
-        <h2 className="mb-8 text-2xl font-bold">
+        <h2 className="mb-2 text-2xl font-bold">
           Mandroso Miaraka
         </h2>
+
+        <p className="mb-8 break-all text-xs text-gray-400">
+          {user.email}
+        </p>
 
         <nav className="flex flex-col gap-4 text-sm">
           <Link href="/dashboard">Dashboard</Link>
