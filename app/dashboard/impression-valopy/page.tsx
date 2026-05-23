@@ -1,6 +1,12 @@
 "use client"
 
-import { type FormEvent, useMemo, useState } from "react"
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 
 type BatchResult = {
   batch_id: string
@@ -10,15 +16,43 @@ type BatchResult = {
   page_count: number
 }
 
+type ExistingBatch = {
+  id: string
+  batch_name: string
+  start_number: number
+  end_number: number
+  flyer_count: number
+  page_count: number
+  batch_type: string | null
+  notes: string | null
+  created_at: string
+}
+
+type CreateBatchResponse = {
+  success?: boolean
+  message?: string
+  batch?: BatchResult
+  error?: string
+}
+
+type ExistingBatchesResponse = {
+  batches?: ExistingBatch[]
+  error?: string
+}
+
 export default function ImpressionValopyPage() {
-  // 0001 à 0004 existent déjà comme premier lot test Supabase.
-  // Nous démarrons à 0005 pour tester la création depuis l'interface.
+  // Les numéros 0001 à 0008 existent actuellement comme lots de test.
+  // Ne pas créer de nouveau lot sur ces numéros.
   const [numeroDepart, setNumeroDepart] = useState("5")
   const [nombreFlyers, setNombreFlyers] = useState("4")
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const [erreur, setErreur] = useState("")
   const [lotCree, setLotCree] = useState<BatchResult | null>(null)
+
+  const [lotsExistants, setLotsExistants] = useState<ExistingBatch[]>([])
+  const [chargementLots, setChargementLots] = useState(true)
+  const [erreurLots, setErreurLots] = useState("")
 
   const debut = Number(numeroDepart) || 0
   const quantite = Number(nombreFlyers) || 0
@@ -38,6 +72,38 @@ export default function ImpressionValopyPage() {
       quantite <= 1000
     )
   }, [debut, quantite])
+
+  const chargerLotsExistants = useCallback(async () => {
+    setChargementLots(true)
+    setErreurLots("")
+
+    try {
+      const response = await fetch("/api/impression-valopy/batches", {
+        method: "GET",
+        cache: "no-store",
+      })
+
+      const result = (await response.json()) as ExistingBatchesResponse
+
+      if (!response.ok) {
+        setErreurLots(
+          result.error || "Impossible de charger les lots d’impression."
+        )
+        return
+      }
+
+      setLotsExistants(result.batches ?? [])
+    } catch (error) {
+      console.error("Erreur chargement lots d’impression :", error)
+      setErreurLots("Erreur de communication lors du chargement des lots.")
+    } finally {
+      setChargementLots(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void chargerLotsExistants()
+  }, [chargerLotsExistants])
 
   async function creerLot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -59,27 +125,28 @@ export default function ImpressionValopyPage() {
           startNumber: debut,
           flyerCount: quantite,
           batchName: `TEST INTERFACE - Lot N° ${numeroFormate(debut)} à N° ${numeroFormate(fin)}`,
-          notes: "DONNEE TEST - CREATION DEPUIS INTERFACE A SUPPRIMER AVANT IMPRESSION REELLE",
+          notes:
+            "DONNEE TEST - CREATION DEPUIS INTERFACE A SUPPRIMER AVANT IMPRESSION REELLE",
         }),
       })
 
-      const result = await response.json()
+      const result = (await response.json()) as CreateBatchResponse
 
-      if (!response.ok) {
+      if (!response.ok || !result.batch) {
         setErreur(
           result.error || "Impossible de créer le lot d’impression."
         )
         return
       }
 
-      const batch = result.batch as BatchResult
-
-      setLotCree(batch)
+      setLotCree(result.batch)
       setMessage(
-        "Lot test créé avec succès. La génération du PDF sera ajoutée à l’étape suivante."
+        "Lot créé avec succès. Vous pouvez maintenant ouvrir son PDF numéroté."
       )
+
+      await chargerLotsExistants()
     } catch (error) {
-      console.error(error)
+      console.error("Erreur création lot d’impression :", error)
       setErreur("Erreur de communication avec le serveur.")
     } finally {
       setLoading(false)
@@ -107,16 +174,15 @@ export default function ImpressionValopyPage() {
         <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
           <p className="font-bold">Mode test actuel</p>
           <p>
-            Les numéros N° 0001 à N° 0004 existent déjà. Pour le test depuis
-            l’interface, utilisez N° 0005 à N° 0008.
+            Les numéros N° 0001 à N° 0008 existent déjà comme lots de test.
+            Ne créez pas de nouveau lot sur cette plage. Retrouvez-les dans la
+            section « Lots d’impression existants » ci-dessous.
           </p>
         </div>
 
         <div className="space-y-5">
           <div>
-            <label className="mb-2 block font-medium">
-              Campagne
-            </label>
+            <label className="mb-2 block font-medium">Campagne</label>
 
             <input
               type="text"
@@ -227,6 +293,19 @@ export default function ImpressionValopyPage() {
               Flyers : <strong>{lotCree.flyer_count}</strong> — Feuilles A4 :{" "}
               <strong>{lotCree.page_count}</strong>
             </p>
+
+            <a
+              href={`/api/impression-valopy/pdf/${lotCree.batch_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-flex rounded-xl bg-green-700 px-5 py-3 font-bold text-white transition hover:bg-green-800"
+            >
+              Ouvrir le PDF numéroté
+            </a>
+
+            <p className="mt-3 text-sm text-green-700">
+              L’ouverture du PDF ne crée pas de nouveaux numéros.
+            </p>
           </div>
         )}
 
@@ -239,10 +318,92 @@ export default function ImpressionValopyPage() {
         </button>
 
         <p className="mt-4 text-sm text-gray-500">
-          À cette étape, le bouton enregistre les numéros. Le PDF imprimable
-          sera généré dans l’étape suivante.
+          Le bouton enregistre de nouveaux numéros. Pour rouvrir un PDF déjà
+          généré, utilisez la liste des lots existants ci-dessous.
         </p>
       </form>
+
+      <section className="mt-8 max-w-3xl rounded-2xl bg-white p-6 shadow">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold">Lots d’impression existants</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Retrouvez un lot déjà créé et ouvrez son PDF sans générer de
+              nouveaux numéros.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void chargerLotsExistants()}
+            disabled={chargementLots}
+            className="rounded-lg border px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            {chargementLots ? "Chargement..." : "Actualiser"}
+          </button>
+        </div>
+
+        {chargementLots && (
+          <p className="rounded-lg bg-gray-50 p-4 text-gray-600">
+            Chargement des lots...
+          </p>
+        )}
+
+        {erreurLots && (
+          <p className="rounded-lg bg-red-50 p-4 text-red-700">
+            {erreurLots}
+          </p>
+        )}
+
+        {!chargementLots && !erreurLots && lotsExistants.length === 0 && (
+          <p className="rounded-lg bg-gray-50 p-4 text-gray-600">
+            Aucun lot d’impression enregistré.
+          </p>
+        )}
+
+        {!chargementLots && !erreurLots && lotsExistants.length > 0 && (
+          <div className="space-y-4">
+            {lotsExistants.map((lot) => (
+              <div
+                key={lot.id}
+                className="rounded-xl border border-gray-200 p-4"
+              >
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <p className="font-bold text-gray-900">
+                      N° {numeroFormate(lot.start_number)} à N°{" "}
+                      {numeroFormate(lot.end_number)}
+                    </p>
+
+                    <p className="mt-1 text-sm text-gray-600">
+                      {lot.flyer_count} flyers — {lot.page_count} feuilles A4
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      {lot.batch_name}
+                    </p>
+
+                    {lot.notes?.includes("TEST") && (
+                      <span className="mt-2 inline-flex rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700">
+                        LOT DE TEST
+                      </span>
+                    )}
+                  </div>
+
+                  <a
+                    href={`/api/impression-valopy/pdf/${lot.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex justify-center rounded-xl bg-green-700 px-5 py-3 font-bold text-white transition hover:bg-green-800"
+                  >
+                    Ouvrir le PDF
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }
