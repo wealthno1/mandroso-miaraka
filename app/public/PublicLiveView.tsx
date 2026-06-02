@@ -20,6 +20,15 @@ type Contribution = {
   id: string
   contributor_name: string | null
   amount: number
+  status?: "active" | "cancelled" | null
+}
+
+type Rakitra = {
+  id: string
+  sunday_date: string
+  amount: number
+  comment: string | null
+  created_at: string | null
 }
 
 export default function PublicLiveView({
@@ -31,12 +40,15 @@ export default function PublicLiveView({
 
   const [campaign, setCampaign] = useState(initialCampaign)
   const [contributions, setContributions] = useState<Contribution[]>([])
+  const [rakitraList, setRakitraList] = useState<Rakitra[]>([])
 
   useEffect(() => {
     async function loadContributions() {
       const { data } = await supabase
         .from("contributions")
-        .select("id, contributor_name, amount")
+        .select("id, contributor_name, amount, status")
+        .eq("campaign_id", initialCampaign.id)
+        .eq("status", "active")
         .order("contribution_date", { ascending: false })
         .limit(5)
 
@@ -45,7 +57,21 @@ export default function PublicLiveView({
       }
     }
 
+    async function loadRakitra() {
+      const { data } = await supabase
+        .from("rakitra")
+        .select("id, sunday_date, amount, comment, created_at")
+        .eq("campaign_id", initialCampaign.id)
+        .order("created_at", { ascending: false })
+        .limit(5)
+
+      if (data) {
+        setRakitraList(data as Rakitra[])
+      }
+    }
+
     loadContributions()
+    loadRakitra()
 
     const channel = supabase
       .channel("public-live-view")
@@ -55,6 +81,7 @@ export default function PublicLiveView({
           event: "UPDATE",
           schema: "public",
           table: "campaigns",
+          filter: `id=eq.${initialCampaign.id}`,
         },
         (payload) => {
           setCampaign(payload.new as Campaign)
@@ -66,13 +93,50 @@ export default function PublicLiveView({
           event: "INSERT",
           schema: "public",
           table: "contributions",
+          filter: `campaign_id=eq.${initialCampaign.id}`,
         },
         (payload) => {
           const newContribution = payload.new as Contribution
 
+          if (newContribution.status === "cancelled") {
+            return
+          }
+
           setContributions((previous) =>
             [newContribution, ...previous].slice(0, 5)
           )
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "contributions",
+          filter: `campaign_id=eq.${initialCampaign.id}`,
+        },
+        (payload) => {
+          const updatedContribution = payload.new as Contribution
+
+          if (updatedContribution.status === "cancelled") {
+            setContributions((previous) =>
+              previous.filter((item) => item.id !== updatedContribution.id)
+            )
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "rakitra",
+          filter: `campaign_id=eq.${initialCampaign.id}`,
+        },
+        (payload) => {
+          const newRakitra = payload.new as Rakitra
+
+          setRakitraList((previous) => [newRakitra, ...previous].slice(0, 5))
         }
       )
       .subscribe()
@@ -80,7 +144,7 @@ export default function PublicLiveView({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, initialCampaign.id])
 
   const percent =
     (Number(campaign.current_amount) / Number(campaign.target_amount)) * 100
@@ -113,9 +177,7 @@ export default function PublicLiveView({
           MANDROSO MIARAKA
         </p>
 
-        <h1 className="mb-4 text-6xl font-bold">
-          {campaign.title}
-        </h1>
+        <h1 className="mb-4 text-6xl font-bold">{campaign.title}</h1>
 
         <p className="text-2xl text-blue-100">
           Tanjona : {Number(campaign.target_amount).toLocaleString()} Ar
@@ -126,9 +188,7 @@ export default function PublicLiveView({
         </p>
 
         <div className="mb-8 rounded-3xl bg-white/10 p-10 shadow-2xl">
-          <p className="mb-2 text-xl text-blue-100">
-            Vola voangona
-          </p>
+          <p className="mb-2 text-xl text-blue-100">Vola voangona</p>
 
           <p className="text-6xl font-extrabold text-green-300">
             <AnimatedAmount value={Number(campaign.current_amount)} />
@@ -145,15 +205,11 @@ export default function PublicLiveView({
         <div className="grid gap-6 md:grid-cols-2">
           <div className="rounded-2xl bg-white/10 p-6">
             <p className="text-blue-100">Fivoarana</p>
-            <p className="text-5xl font-bold">
-              {percent.toFixed(2)} %
-            </p>
+            <p className="text-5xl font-bold">{percent.toFixed(2)} %</p>
           </div>
 
           <div className="rounded-2xl bg-white/10 p-6">
-            <p className="text-blue-100">
-              Fanomezana sisa andrasana
-            </p>
+            <p className="text-blue-100">Fanomezana sisa andrasana</p>
 
             <p className="text-5xl font-bold text-red-300">
               {remaining.toLocaleString()} Ar
@@ -190,6 +246,39 @@ export default function PublicLiveView({
           </div>
         </div>
 
+        <div className="mt-6">
+          <h2 className="mb-4 text-3xl font-bold text-yellow-300">
+            Rakitra farany
+          </h2>
+
+          <div className="grid gap-3 md:grid-cols-5">
+            <AnimatePresence>
+              {rakitraList.map((rakitra) => (
+                <motion.div
+                  key={rakitra.id}
+                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  transition={{ duration: 0.5 }}
+                  className="rounded-2xl bg-white/10 p-3 shadow-lg"
+                >
+                  <p className="text-xl font-bold text-blue-200">
+                    + {Number(rakitra.amount).toLocaleString()} Ar
+                  </p>
+
+                  <p className="mt-1 text-sm text-blue-100">
+                    {rakitra.comment || "Rakitra"}
+                  </p>
+
+                  <p className="mt-1 text-xs text-blue-200">
+                    {new Date(rakitra.sunday_date).toLocaleDateString("fr-FR")}
+                  </p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+
         <div className="mt-6 flex flex-col items-center">
           <div className="rounded-3xl bg-white p-6 shadow-2xl">
             <QRCodeSVG
@@ -198,9 +287,7 @@ export default function PublicLiveView({
             />
           </div>
 
-          <p className="mt-4 text-lg text-blue-100">
-            Scanéo eto ny QR Code
-          </p>
+          <p className="mt-4 text-lg text-blue-100">Scanéo eto ny QR Code</p>
         </div>
 
         <RotatingVerse />
