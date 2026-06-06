@@ -294,9 +294,102 @@ export async function GET() {
       )
     }
 
+    type PaymentRow = {
+      id: string
+      receipt_registry_id: string | null
+      [key: string]: unknown
+    }
+
+    type ReceiptRow = {
+      id: string
+      receipt_book_id: string | null
+      receipt_number: number
+      receipt_number_display: string
+      status: string
+    }
+
+    type ReceiptBookRow = {
+      id: string
+      book_number: number
+      responsible_name: string | null
+    }
+
+    const paymentRows = (payments ?? []) as unknown as PaymentRow[]
+    const receiptIds = Array.from(
+      new Set(
+        paymentRows
+          .map((payment) => payment.receipt_registry_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    )
+
+    const receiptsById = new Map<
+      string,
+      ReceiptRow & { receipt_book: ReceiptBookRow | null }
+    >()
+
+    if (receiptIds.length > 0) {
+      const { data: receipts, error: receiptsError } = await supabase
+        .from("receipt_registry")
+        .select("id, receipt_book_id, receipt_number, receipt_number_display, status")
+        .in("id", receiptIds)
+
+      if (receiptsError) {
+        return jsonError(
+          `Impossible de charger les recus : ${receiptsError.message}`,
+          500
+        )
+      }
+
+      const receiptRows = (receipts ?? []) as unknown as ReceiptRow[]
+      const bookIds = Array.from(
+        new Set(
+          receiptRows
+            .map((receipt) => receipt.receipt_book_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      )
+
+      const booksById = new Map<string, ReceiptBookRow>()
+
+      if (bookIds.length > 0) {
+        const { data: books, error: booksError } = await supabase
+          .from("receipt_books")
+          .select("id, book_number, responsible_name")
+          .in("id", bookIds)
+
+        if (booksError) {
+          return jsonError(
+            `Impossible de charger les carnets : ${booksError.message}`,
+            500
+          )
+        }
+
+        ;((books ?? []) as unknown as ReceiptBookRow[]).forEach((book) => {
+          booksById.set(book.id, book)
+        })
+      }
+
+      receiptRows.forEach((receipt) => {
+        receiptsById.set(receipt.id, {
+          ...receipt,
+          receipt_book: receipt.receipt_book_id
+            ? booksById.get(receipt.receipt_book_id) ?? null
+            : null,
+        })
+      })
+    }
+
+    const enrichedPayments = paymentRows.map((payment) => ({
+      ...payment,
+      receipt_registry: payment.receipt_registry_id
+        ? receiptsById.get(payment.receipt_registry_id) ?? null
+        : null,
+    }))
+
     return NextResponse.json({
       envelopes: envelopes ?? [],
-      payments: payments ?? [],
+      payments: enrichedPayments,
     })
   } catch (error) {
     console.error("Erreur API enveloppes GET :", error)

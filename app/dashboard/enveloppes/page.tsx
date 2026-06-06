@@ -23,6 +23,15 @@ type Payment = {
   paid_at: string | null
   status: string
   operator_name: string | null
+  receipt_registry?: {
+    receipt_number: number | null
+    receipt_number_display: string | null
+    status: string | null
+    receipt_book?: {
+      book_number: number | null
+      responsible_name: string | null
+    } | null
+  } | null
 }
 
 const paymentMethods = [
@@ -36,6 +45,61 @@ const paymentMethods = [
 
 function formatAmount(value: number | string | null | undefined) {
   return `${Number(value ?? 0).toLocaleString("fr-FR")} Ar`
+}
+
+function formatBookNumber(value: number | null | undefined) {
+  if (!value) return "-"
+  return String(value).padStart(2, "0")
+}
+
+function formatReceiptNumber(value: number | string | null | undefined) {
+  if (!value) return "-"
+  return String(value).padStart(3, "0")
+}
+
+function getReceiptBookPreview(value: string) {
+  const raw = value.trim()
+
+  if (!raw) return ""
+
+  if (!/^[0-9]+$/.test(raw)) {
+    return "Numero de recu invalide."
+  }
+
+  const receiptNumber = Number(raw)
+
+  if (!Number.isInteger(receiptNumber) || receiptNumber <= 0) {
+    return "Numero de recu invalide."
+  }
+
+  const bookNumber = Math.ceil(receiptNumber / 25)
+  const startReceiptNumber = (bookNumber - 1) * 25 + 1
+  const endReceiptNumber = bookNumber * 25
+
+  return `Recu ${formatReceiptNumber(receiptNumber)} -> Carnet ${formatBookNumber(
+    bookNumber
+  )} (plage ${formatReceiptNumber(startReceiptNumber)} a ${formatReceiptNumber(
+    endReceiptNumber
+  )})`
+}
+
+function getReceiptLine(payment: Payment) {
+  const receipt = payment.receipt_registry
+  const book = receipt?.receipt_book
+
+  if (!receipt) {
+    return "Recu non renseigne"
+  }
+
+  return `Recu ${receipt.receipt_number_display || "-"} — Carnet ${formatBookNumber(
+    book?.book_number
+  )}`
+}
+
+function getReceiptResponsibleLine(payment: Payment) {
+  const responsible = payment.receipt_registry?.receipt_book?.responsible_name
+
+  return `Responsable carnet : ${responsible || "-"}`
 }
 
 function normalizeEnvelopeInput(value: string) {
@@ -130,6 +194,11 @@ export default function EnveloppesPage() {
   const totalPaid = envelopes.reduce(
     (sum, envelope) => sum + Number(envelope.total_paid || 0),
     0
+  )
+
+  const receiptBookPreview = useMemo(
+    () => getReceiptBookPreview(receiptNumber),
+    [receiptNumber]
   )
 
   async function submitEnvelope(event: FormEvent<HTMLFormElement>) {
@@ -361,6 +430,12 @@ export default function EnveloppesPage() {
             required
           />
 
+          {receiptBookPreview ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-medium text-blue-800">
+              {receiptBookPreview}
+            </div>
+          ) : null}
+
           <input
             value={responsibleName}
             onChange={(event) => setResponsibleName(event.target.value)}
@@ -522,10 +597,14 @@ export default function EnveloppesPage() {
                 </div>
 
                 <div className="text-sm text-gray-600">
-                  {payment.status} |{" "}
-                  {payment.paid_at
-                    ? new Date(payment.paid_at).toLocaleString("fr-FR")
-                    : "-"}
+                  <p>{getReceiptLine(payment)}</p>
+                  <p>{getReceiptResponsibleLine(payment)}</p>
+                  <p>
+                    {payment.status} |{" "}
+                    {payment.paid_at
+                      ? new Date(payment.paid_at).toLocaleString("fr-FR")
+                      : "-"}
+                  </p>
                 </div>
               </div>
             ))}
