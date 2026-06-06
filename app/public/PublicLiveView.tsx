@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
@@ -23,6 +23,13 @@ type Contribution = {
   status?: "active" | "cancelled" | null
 }
 
+type ValopyPayment = {
+  id: string
+  contributor_name: string | null
+  amount: number
+  paid_at: string | null
+}
+
 type Rakitra = {
   id: string
   sunday_date: string
@@ -36,10 +43,11 @@ export default function PublicLiveView({
 }: {
   initialCampaign: Campaign
 }) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const [campaign, setCampaign] = useState(initialCampaign)
   const [contributions, setContributions] = useState<Contribution[]>([])
+  const [valopyPayments, setValopyPayments] = useState<ValopyPayment[]>([])
   const [rakitraList, setRakitraList] = useState<Rakitra[]>([])
 
   useEffect(() => {
@@ -57,6 +65,19 @@ export default function PublicLiveView({
       }
     }
 
+    async function loadValopyPayments() {
+      const response = await fetch("/api/public/envelope-payments", {
+        cache: "no-store",
+      })
+
+      if (!response.ok) {
+        return
+      }
+
+      const payload = await response.json()
+      setValopyPayments(payload.gifts || [])
+    }
+
     async function loadRakitra() {
       const { data } = await supabase
         .from("rakitra")
@@ -71,7 +92,12 @@ export default function PublicLiveView({
     }
 
     loadContributions()
+    loadValopyPayments()
     loadRakitra()
+
+    const refreshValopyInterval = window.setInterval(() => {
+      loadValopyPayments()
+    }, 15000)
 
     const channel = supabase
       .channel("public-live-view")
@@ -85,6 +111,7 @@ export default function PublicLiveView({
         },
         (payload) => {
           setCampaign(payload.new as Campaign)
+          loadValopyPayments()
         }
       )
       .on(
@@ -142,6 +169,7 @@ export default function PublicLiveView({
       .subscribe()
 
     return () => {
+      window.clearInterval(refreshValopyInterval)
       supabase.removeChannel(channel)
     }
   }, [supabase, initialCampaign.id])
@@ -169,7 +197,7 @@ export default function PublicLiveView({
         onClick={() => document.documentElement.requestFullscreen()}
         className="fixed bottom-6 right-6 z-50 rounded-2xl bg-yellow-400 px-6 py-3 text-lg font-bold text-blue-950 shadow-2xl transition hover:scale-105"
       >
-        Plein écran
+        Plein ecran
       </button>
 
       <section className="w-full max-w-6xl text-center">
@@ -248,6 +276,35 @@ export default function PublicLiveView({
 
         <div className="mt-6">
           <h2 className="mb-4 text-3xl font-bold text-yellow-300">
+            Valopy farany
+          </h2>
+
+          <div className="grid gap-3 md:grid-cols-5">
+            <AnimatePresence>
+              {valopyPayments.map((payment) => (
+                <motion.div
+                  key={payment.id}
+                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                  transition={{ duration: 0.5 }}
+                  className="rounded-2xl bg-white/10 p-3 shadow-lg"
+                >
+                  <p className="text-xl font-bold text-emerald-300">
+                    + {Number(payment.amount).toLocaleString()} Ar
+                  </p>
+
+                  <p className="mt-1 text-sm text-blue-100">
+                    {payment.contributor_name || "TSY MITONONA ANARANA"}
+                  </p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <h2 className="mb-4 text-3xl font-bold text-yellow-300">
             Rakitra farany
           </h2>
 
@@ -287,7 +344,7 @@ export default function PublicLiveView({
             />
           </div>
 
-          <p className="mt-4 text-lg text-blue-100">Scanéo eto ny QR Code</p>
+          <p className="mt-4 text-lg text-blue-100">Scaneo eto ny QR Code</p>
         </div>
 
         <RotatingVerse />
