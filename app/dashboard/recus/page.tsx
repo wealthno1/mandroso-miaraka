@@ -73,6 +73,7 @@ export default function RecusPage() {
   const [totals, setTotals] = useState<RecusResponse["totals"] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [message, setMessage] = useState("")
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
 
@@ -98,6 +99,70 @@ export default function RecusPage() {
         loadError instanceof Error
           ? loadError.message
           : "Erreur lors du chargement des carnets."
+
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  async function handleMarkReceiptFoana(
+    receipt: ReceiptView,
+    book: ReceiptBookView
+  ) {
+    if (receipt.status !== "available") {
+      setError("Seul un recu disponible peut etre marque FOANA.")
+      return
+    }
+
+    const reason = window.prompt(
+      `Motif FOANA pour le recu ${receipt.receipt_number_display} du carnet ${formatBookNumber(
+        book.book_number
+      )} :`
+    )
+
+    if (!reason || !reason.trim()) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Confirmer que le recu ${receipt.receipt_number_display} est FOANA ? Aucun paiement ne sera cree et ce recu ne pourra plus etre utilise.`
+    )
+
+    if (!confirmed) return
+
+    setLoading(true)
+    setError("")
+    setMessage("")
+
+    try {
+      const response = await fetch("/api/enveloppes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "mark_receipt_foana",
+          receiptNumber: receipt.receipt_number_display,
+          responsibleName: book.responsible_name || "",
+          reason,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Impossible de marquer le recu FOANA.")
+      }
+
+      setMessage(payload.message || "Recu marque FOANA.")
+      await loadData()
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : "Erreur lors du marquage FOANA."
 
       setError(message)
     } finally {
@@ -281,6 +346,7 @@ export default function RecusPage() {
                     <th className="p-3">Operateur</th>
                     <th className="p-3">Date</th>
                     <th className="p-3">Motif FOANA</th>
+                    <th className="p-3">Actions</th>
                   </tr>
                 </thead>
 
@@ -321,6 +387,21 @@ export default function RecusPage() {
 
                       <td className="p-3">
                         {receipt.foana_reason || "-"}
+                      </td>
+
+                      <td className="p-3">
+                        {receipt.status === "available" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkReceiptFoana(receipt, book)}
+                            disabled={loading}
+                            className="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800 disabled:bg-gray-400"
+                          >
+                            Marquer FOANA
+                          </button>
+                        ) : (
+                          "-"
+                        )}
                       </td>
                     </tr>
                   ))}
