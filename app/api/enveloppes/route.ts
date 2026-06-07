@@ -32,7 +32,21 @@ type CreatePaymentRequest = {
   responsibleName?: string
 }
 
-type RequestBody = CreateEnvelopeRequest | CreatePaymentRequest
+type UpdateEnvelopeRequest = {
+  action: "update_envelope"
+  envelopeId?: string
+  beneficiaryName?: string
+  phone?: string
+  distributedBy?: string
+  isAnonymous?: boolean
+  notes?: string
+  status?: string
+}
+
+type RequestBody =
+  | CreateEnvelopeRequest
+  | CreatePaymentRequest
+  | UpdateEnvelopeRequest
 
 function getCampaignId() {
   return process.env.IRAY_VOLANA_CAMPAIGN_ID
@@ -453,6 +467,62 @@ export async function POST(request: Request) {
         },
         { status: 201 }
       )
+    }
+
+
+    if (body.action === "update_envelope") {
+      const envelopeId = body.envelopeId?.trim() || ""
+
+      if (!envelopeId) {
+        return jsonError("Identifiant enveloppe manquant.", 400)
+      }
+
+      const allowedStatuses = [
+        "distributed",
+        "in_progress",
+        "closed",
+        "cancelled",
+      ]
+
+      const status = body.status?.trim() || "distributed"
+
+      if (!allowedStatuses.includes(status)) {
+        return jsonError("Statut enveloppe invalide.", 400)
+      }
+
+      const isAnonymous = Boolean(body.isAnonymous)
+      const beneficiaryName = body.beneficiaryName?.trim() || null
+
+      const { data, error } = await supabase
+        .from("faith_envelopes")
+        .update({
+          beneficiary_name:
+            beneficiaryName || (isAnonymous ? "TSY MITONONA ANARANA" : null),
+          beneficiary_type: isAnonymous ? "anonymous" : "person",
+          phone: body.phone?.trim() || null,
+          distributed_by: body.distributedBy?.trim() || null,
+          is_anonymous: isAnonymous,
+          status,
+          notes: body.notes?.trim() || null,
+          updated_by: adminUser.email,
+        })
+        .eq("id", envelopeId)
+        .eq("campaign_id", campaignId)
+        .select()
+        .single()
+
+      if (error) {
+        return jsonError(
+          `Impossible de modifier l'enveloppe : ${error.message}`,
+          400
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Enveloppe ${data.envelope_number} modifiee.`,
+        envelope: data,
+      })
     }
 
     if (body.action === "create_payment") {

@@ -139,6 +139,15 @@ export default function EnveloppesPage() {
   const [prayerText, setPrayerText] = useState("")
   const [confidentiality, setConfidentiality] = useState("internal")
 
+  const [editingEnvelopeId, setEditingEnvelopeId] = useState("")
+  const [editEnvelopeNumber, setEditEnvelopeNumber] = useState("")
+  const [editBeneficiaryName, setEditBeneficiaryName] = useState("")
+  const [editPhone, setEditPhone] = useState("")
+  const [editDistributedBy, setEditDistributedBy] = useState("")
+  const [editIsAnonymous, setEditIsAnonymous] = useState(false)
+  const [editStatus, setEditStatus] = useState("distributed")
+  const [editNotes, setEditNotes] = useState("")
+
   async function loadData() {
     setLoadingList(true)
     setError("")
@@ -254,6 +263,79 @@ export default function EnveloppesPage() {
     }
   }
 
+
+  function startEditEnvelope(envelope: Envelope) {
+    setEditingEnvelopeId(envelope.id)
+    setEditEnvelopeNumber(envelope.envelope_number)
+    setEditBeneficiaryName(envelope.beneficiary_name || "")
+    setEditPhone(envelope.phone || "")
+    setEditDistributedBy(envelope.distributed_by || "")
+    setEditIsAnonymous(Boolean(envelope.is_anonymous))
+    setEditStatus(envelope.status || "distributed")
+    setEditNotes(envelope.notes || "")
+
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  function cancelEditEnvelope() {
+    setEditingEnvelopeId("")
+    setEditEnvelopeNumber("")
+    setEditBeneficiaryName("")
+    setEditPhone("")
+    setEditDistributedBy("")
+    setEditIsAnonymous(false)
+    setEditStatus("distributed")
+    setEditNotes("")
+  }
+
+  async function submitEditEnvelope(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (loading || !editingEnvelopeId) return
+
+    setLoading(true)
+    setError("")
+    setMessage("")
+
+    try {
+      const response = await fetch("/api/enveloppes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_envelope",
+          envelopeId: editingEnvelopeId,
+          beneficiaryName: editBeneficiaryName,
+          phone: editPhone,
+          distributedBy: editDistributedBy,
+          isAnonymous: editIsAnonymous,
+          status: editStatus,
+          notes: editNotes,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Impossible de modifier l'enveloppe.")
+      }
+
+      setMessage(payload.message || "Enveloppe modifiee.")
+      cancelEditEnvelope()
+      await loadData()
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : "Erreur lors de la modification de l'enveloppe."
+
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -332,6 +414,93 @@ export default function EnveloppesPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
           {error}
         </div>
+      ) : null}
+
+
+      {editingEnvelopeId ? (
+        <form
+          onSubmit={submitEditEnvelope}
+          className="space-y-4 rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow"
+        >
+          <div>
+            <h2 className="text-2xl font-bold">
+              Modifier l'enveloppe {editEnvelopeNumber}
+            </h2>
+            <p className="text-sm text-gray-600">
+              Cette modification ne change pas les paiements deja saisis.
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <input
+              value={editBeneficiaryName}
+              onChange={(event) => setEditBeneficiaryName(event.target.value)}
+              placeholder="Nom interne beneficiaire / famille / groupe"
+              className="w-full rounded-lg border p-3"
+            />
+
+            <input
+              value={editPhone}
+              onChange={(event) => setEditPhone(event.target.value)}
+              placeholder="Telephone"
+              className="w-full rounded-lg border p-3"
+            />
+
+            <input
+              value={editDistributedBy}
+              onChange={(event) => setEditDistributedBy(event.target.value)}
+              placeholder="Distribue par"
+              className="w-full rounded-lg border p-3"
+            />
+
+            <select
+              value={editStatus}
+              onChange={(event) => setEditStatus(event.target.value)}
+              className="w-full rounded-lg border p-3"
+            >
+              <option value="distributed">distributed</option>
+              <option value="in_progress">in_progress</option>
+              <option value="closed">closed</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+
+          <textarea
+            value={editNotes}
+            onChange={(event) => setEditNotes(event.target.value)}
+            placeholder="Observation interne"
+            className="min-h-20 w-full rounded-lg border p-3"
+          />
+
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={editIsAnonymous}
+              onChange={(event) => setEditIsAnonymous(event.target.checked)}
+            />
+            <span>
+              Tsy mitonona anarana / Anonyme publiquement
+            </span>
+          </label>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              {loading ? "Modification..." : "Enregistrer la modification"}
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelEditEnvelope}
+              className="rounded-xl bg-gray-200 px-5 py-3 font-bold text-gray-800 hover:bg-gray-300"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-2">
@@ -548,6 +717,7 @@ export default function EnveloppesPage() {
                   <th className="p-3">Statut</th>
                   <th className="p-3 text-right">Total paye</th>
                   <th className="p-3">Priere</th>
+                  <th className="p-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -567,6 +737,15 @@ export default function EnveloppesPage() {
                     </td>
                     <td className="p-3">
                       {envelope.has_prayer_request ? "Oui" : "Non"}
+                    </td>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => startEditEnvelope(envelope)}
+                        className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                      >
+                        Modifier
+                      </button>
                     </td>
                   </tr>
                 ))}
