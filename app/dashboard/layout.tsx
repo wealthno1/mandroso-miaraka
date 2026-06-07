@@ -37,6 +37,7 @@ export default async function DashboardLayout({
           <Link href="/dashboard/contributions">Contributions</Link>
           <Link href="/dashboard/enveloppes">Enveloppes Iray Volana</Link>
           <Link href="/dashboard/impression-valopy">Impression Valopy</Link>
+          <Link href="/dashboard/recus">Carnets / Recus</Link>
           <Link href="/dashboard/rakitra">Rakitra faha-4</Link>
           <Link href="/dashboard/tanjona">Tanjom-pinoana</Link>
           <Link href="/dashboard/categories">Catégories</Link>
