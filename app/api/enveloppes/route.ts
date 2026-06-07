@@ -43,10 +43,22 @@ type UpdateEnvelopeRequest = {
   status?: string
 }
 
+type UpdatePaymentRequest = {
+  action: "update_payment"
+  paymentId?: string
+  amount?: number
+  paymentMethod?: string
+  operatorName?: string
+  notes?: string
+  isClosingPayment?: boolean
+  reason?: string
+}
+
 type RequestBody =
   | CreateEnvelopeRequest
   | CreatePaymentRequest
   | UpdateEnvelopeRequest
+  | UpdatePaymentRequest
 
 function getCampaignId() {
   return process.env.IRAY_VOLANA_CAMPAIGN_ID
@@ -522,6 +534,117 @@ export async function POST(request: Request) {
         success: true,
         message: `Enveloppe ${data.envelope_number} modifiee.`,
         envelope: data,
+      })
+    }
+
+
+    if (body.action === "update_payment") {
+      const paymentId = body.paymentId?.trim() || ""
+      const amount = Number(body.amount)
+      const reason = body.reason?.trim() || ""
+
+      if (!paymentId) {
+        return jsonError("Identifiant paiement manquant.", 400)
+      }
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return jsonError("Le montant doit etre strictement superieur a zero.", 400)
+      }
+
+      if (!reason) {
+        return jsonError("Le motif de correction est obligatoire.", 400)
+      }
+
+      const paymentMethod = body.paymentMethod?.trim() || "cash"
+
+      if (
+        !["cash", "mvola", "orange_money", "transfer", "check", "other"].includes(
+          paymentMethod
+        )
+      ) {
+        return jsonError("Mode de paiement invalide.", 400)
+      }
+
+      const { data: existingPayment, error: existingPaymentError } = await supabase
+        .from("faith_envelope_payments")
+        .select("id, campaign_id, envelope_id, amount, status")
+        .eq("id", paymentId)
+        .eq("campaign_id", campaignId)
+        .maybeSingle()
+
+      if (existingPaymentError) {
+        return jsonError(
+          `Impossible de verifier le paiement : ${existingPaymentError.message}`,
+          500
+        )
+      }
+
+      if (!existingPayment) {
+        return jsonError("Paiement introuvable.", 404)
+      }
+
+      if (existingPayment.status !== "active") {
+        return jsonError("Seul un paiement actif peut etre modifie.", 400)
+      }
+
+      const noteText = body.notes?.trim() || ""
+      const reasonLine = `Correction par ${adminUser.email} le ${new Date().toISOString()} : ${reason}`
+      const finalNotes = noteText ? `${noteText}\n${reasonLine}` : reasonLine
+
+      const { data: updatedPayment, error: updatePaymentError } = await supabase
+        .from("faith_envelope_payments")
+        .update({
+          amount,
+          payment_method: paymentMethod,
+          operator_name: body.operatorName?.trim() || adminUser.email,
+          notes: finalNotes,
+          is_closing_payment: Boolean(body.isClosingPayment),
+          updated_by: adminUser.email,
+        })
+        .eq("id", paymentId)
+        .eq("campaign_id", campaignId)
+        .select()
+        .single()
+
+      if (updatePaymentError) {
+        return jsonError(
+          `Impossible de modifier le paiement : ${updatePaymentError.message}`,
+          400
+        )
+      }
+
+      const { data: refreshedEnvelope } = await supabase
+        .from("faith_envelopes")
+        .select("id, total_paid")
+        .eq("id", existingPayment.envelope_id)
+        .single()
+
+      const totalPaid = Number(refreshedEnvelope?.total_paid ?? amount)
+
+      if (body.isClosingPayment) {
+        await supabase
+          .from("faith_envelopes")
+          .update({
+            status: "closed",
+            final_category: getFinalCategory(totalPaid),
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingPayment.envelope_id)
+      } else {
+        await supabase
+          .from("faith_envelopes")
+          .update({
+            status: "in_progress",
+            final_category: null,
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingPayment.envelope_id)
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Paiement modifie avec succes.",
+        payment: updatedPayment,
       })
     }
 

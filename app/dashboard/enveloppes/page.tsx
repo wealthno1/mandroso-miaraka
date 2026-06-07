@@ -23,6 +23,8 @@ type Payment = {
   paid_at: string | null
   status: string
   operator_name: string | null
+  notes?: string | null
+  is_closing_payment?: boolean | null
   receipt_registry?: {
     receipt_number: number | null
     receipt_number_display: string | null
@@ -147,6 +149,16 @@ export default function EnveloppesPage() {
   const [editIsAnonymous, setEditIsAnonymous] = useState(false)
   const [editStatus, setEditStatus] = useState("distributed")
   const [editNotes, setEditNotes] = useState("")
+
+  const [editingPaymentId, setEditingPaymentId] = useState("")
+  const [editPaymentAmount, setEditPaymentAmount] = useState("")
+  const [editPaymentMethod, setEditPaymentMethod] = useState("cash")
+  const [editPaymentOperatorName, setEditPaymentOperatorName] = useState("")
+  const [editPaymentNotes, setEditPaymentNotes] = useState("")
+  const [editPaymentIsClosingPayment, setEditPaymentIsClosingPayment] =
+    useState(false)
+  const [editPaymentReason, setEditPaymentReason] = useState("")
+  const [editPaymentReceiptInfo, setEditPaymentReceiptInfo] = useState("")
 
   async function loadData() {
     setLoadingList(true)
@@ -336,6 +348,79 @@ export default function EnveloppesPage() {
     }
   }
 
+
+  function startEditPayment(payment: Payment) {
+    setEditingPaymentId(payment.id)
+    setEditPaymentAmount(String(payment.amount || ""))
+    setEditPaymentMethod(payment.payment_method || "cash")
+    setEditPaymentOperatorName(payment.operator_name || "")
+    setEditPaymentNotes(payment.notes || "")
+    setEditPaymentIsClosingPayment(Boolean(payment.is_closing_payment))
+    setEditPaymentReason("")
+    setEditPaymentReceiptInfo(getReceiptLine(payment))
+
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  function cancelEditPayment() {
+    setEditingPaymentId("")
+    setEditPaymentAmount("")
+    setEditPaymentMethod("cash")
+    setEditPaymentOperatorName("")
+    setEditPaymentNotes("")
+    setEditPaymentIsClosingPayment(false)
+    setEditPaymentReason("")
+    setEditPaymentReceiptInfo("")
+  }
+
+  async function submitEditPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (loading || !editingPaymentId) return
+
+    setLoading(true)
+    setError("")
+    setMessage("")
+
+    try {
+      const response = await fetch("/api/enveloppes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "update_payment",
+          paymentId: editingPaymentId,
+          amount: Number(editPaymentAmount),
+          paymentMethod: editPaymentMethod,
+          operatorName: editPaymentOperatorName,
+          notes: editPaymentNotes,
+          isClosingPayment: editPaymentIsClosingPayment,
+          reason: editPaymentReason,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Impossible de modifier le paiement.")
+      }
+
+      setMessage(payload.message || "Paiement modifie.")
+      cancelEditPayment()
+      await loadData()
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : "Erreur lors de la modification du paiement."
+
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -495,6 +580,99 @@ export default function EnveloppesPage() {
             <button
               type="button"
               onClick={cancelEditEnvelope}
+              className="rounded-xl bg-gray-200 px-5 py-3 font-bold text-gray-800 hover:bg-gray-300"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+
+      {editingPaymentId ? (
+        <form
+          onSubmit={submitEditPayment}
+          className="space-y-4 rounded-2xl border border-amber-200 bg-amber-50 p-6 shadow"
+        >
+          <div>
+            <h2 className="text-2xl font-bold">Modifier un paiement</h2>
+            <p className="text-sm text-gray-600">
+              Le recu reste attache au paiement. Cette correction recalculera le
+              total de l'enveloppe et le total public.
+            </p>
+            <p className="mt-2 text-sm font-bold text-amber-800">
+              {editPaymentReceiptInfo}
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <input
+              type="number"
+              value={editPaymentAmount}
+              onChange={(event) => setEditPaymentAmount(event.target.value)}
+              placeholder="Montant corrige"
+              className="w-full rounded-lg border p-3"
+              required
+            />
+
+            <select
+              value={editPaymentMethod}
+              onChange={(event) => setEditPaymentMethod(event.target.value)}
+              className="w-full rounded-lg border p-3"
+            >
+              {paymentMethods.map((method) => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+
+            <input
+              value={editPaymentOperatorName}
+              onChange={(event) => setEditPaymentOperatorName(event.target.value)}
+              placeholder="Operateur de saisie"
+              className="w-full rounded-lg border p-3"
+            />
+          </div>
+
+          <textarea
+            value={editPaymentNotes}
+            onChange={(event) => setEditPaymentNotes(event.target.value)}
+            placeholder="Observation paiement"
+            className="min-h-20 w-full rounded-lg border p-3"
+          />
+
+          <textarea
+            value={editPaymentReason}
+            onChange={(event) => setEditPaymentReason(event.target.value)}
+            placeholder="Motif obligatoire de correction"
+            className="min-h-20 w-full rounded-lg border p-3"
+            required
+          />
+
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={editPaymentIsClosingPayment}
+              onChange={(event) =>
+                setEditPaymentIsClosingPayment(event.target.checked)
+              }
+            />
+            <span>Ce paiement cloture l'enveloppe</span>
+          </label>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-amber-600 px-5 py-3 font-bold text-white hover:bg-amber-700 disabled:bg-gray-400"
+            >
+              {loading ? "Correction..." : "Enregistrer la correction"}
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelEditPayment}
               className="rounded-xl bg-gray-200 px-5 py-3 font-bold text-gray-800 hover:bg-gray-300"
             >
               Annuler
@@ -784,6 +962,14 @@ export default function EnveloppesPage() {
                       ? new Date(payment.paid_at).toLocaleString("fr-FR")
                       : "-"}
                   </p>
+
+                  <button
+                    type="button"
+                    onClick={() => startEditPayment(payment)}
+                    className="mt-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
+                  >
+                    Modifier paiement
+                  </button>
                 </div>
               </div>
             ))}
