@@ -54,11 +54,18 @@ type UpdatePaymentRequest = {
   reason?: string
 }
 
+type CancelPaymentRequest = {
+  action: "cancel_payment"
+  paymentId?: string
+  reason?: string
+}
+
 type RequestBody =
   | CreateEnvelopeRequest
   | CreatePaymentRequest
   | UpdateEnvelopeRequest
   | UpdatePaymentRequest
+  | CancelPaymentRequest
 
 function getCampaignId() {
   return process.env.IRAY_VOLANA_CAMPAIGN_ID
@@ -537,6 +544,94 @@ export async function POST(request: Request) {
       })
     }
 
+
+
+    if (body.action === "cancel_payment") {
+      const paymentId = body.paymentId?.trim() || ""
+      const reason = body.reason?.trim() || ""
+
+      if (!paymentId) {
+        return jsonError("Identifiant paiement manquant.", 400)
+      }
+
+      if (!reason) {
+        return jsonError("Le motif d'annulation est obligatoire.", 400)
+      }
+
+      const { data: existingPayment, error: existingPaymentError } = await supabase
+        .from("faith_envelope_payments")
+        .select("id, campaign_id, envelope_id, amount, status, notes")
+        .eq("id", paymentId)
+        .eq("campaign_id", campaignId)
+        .maybeSingle()
+
+      if (existingPaymentError) {
+        return jsonError(
+          `Impossible de verifier le paiement : ${existingPaymentError.message}`,
+          500
+        )
+      }
+
+      if (!existingPayment) {
+        return jsonError("Paiement introuvable.", 404)
+      }
+
+      if (existingPayment.status !== "active") {
+        return jsonError("Seul un paiement actif peut etre annule.", 400)
+      }
+
+      const cancellationLine = `Annulation par ${adminUser.email} le ${new Date().toISOString()} : ${reason}`
+      const finalNotes = existingPayment.notes
+        ? `${existingPayment.notes}\n${cancellationLine}`
+        : cancellationLine
+
+      const { data: cancelledPayment, error: cancelPaymentError } = await supabase
+        .from("faith_envelope_payments")
+        .update({
+          status: "cancelled",
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: adminUser.email,
+          notes: finalNotes,
+          updated_by: adminUser.email,
+        })
+        .eq("id", paymentId)
+        .eq("campaign_id", campaignId)
+        .select()
+        .single()
+
+      if (cancelPaymentError) {
+        return jsonError(
+          `Impossible d'annuler le paiement : ${cancelPaymentError.message}`,
+          400
+        )
+      }
+
+      const { data: refreshedEnvelope } = await supabase
+        .from("faith_envelopes")
+        .select("id, total_paid, status")
+        .eq("id", existingPayment.envelope_id)
+        .single()
+
+      const totalPaid = Number(refreshedEnvelope?.total_paid ?? 0)
+
+      if (refreshedEnvelope?.status !== "cancelled") {
+        await supabase
+          .from("faith_envelopes")
+          .update({
+            status: totalPaid > 0 ? "in_progress" : "distributed",
+            final_category: null,
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingPayment.envelope_id)
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Paiement annule avec succes. Le recu reste conserve et ne redevient pas disponible.",
+        payment: cancelledPayment,
+      })
+    }
 
     if (body.action === "update_payment") {
       const paymentId = body.paymentId?.trim() || ""

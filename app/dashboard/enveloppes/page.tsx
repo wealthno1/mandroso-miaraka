@@ -160,6 +160,11 @@ export default function EnveloppesPage() {
   const [editPaymentReason, setEditPaymentReason] = useState("")
   const [editPaymentReceiptInfo, setEditPaymentReceiptInfo] = useState("")
 
+  const [cancellingPaymentId, setCancellingPaymentId] = useState("")
+  const [cancelPaymentAmount, setCancelPaymentAmount] = useState("")
+  const [cancelPaymentReceiptInfo, setCancelPaymentReceiptInfo] = useState("")
+  const [cancelPaymentReason, setCancelPaymentReason] = useState("")
+
   async function loadData() {
     setLoadingList(true)
     setError("")
@@ -421,6 +426,77 @@ export default function EnveloppesPage() {
     }
   }
 
+
+  function startCancelPayment(payment: Payment) {
+    if (payment.status !== "active") {
+      setError("Seul un paiement actif peut etre annule.")
+      return
+    }
+
+    setCancellingPaymentId(payment.id)
+    setCancelPaymentAmount(String(payment.amount || ""))
+    setCancelPaymentReceiptInfo(getReceiptLine(payment))
+    setCancelPaymentReason("")
+
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  function cancelCancelPayment() {
+    setCancellingPaymentId("")
+    setCancelPaymentAmount("")
+    setCancelPaymentReceiptInfo("")
+    setCancelPaymentReason("")
+  }
+
+  async function submitCancelPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (loading || !cancellingPaymentId) return
+
+    const confirmed = window.confirm(
+      "Confirmer l'annulation de ce paiement ? Le recu restera conserve et ne redeviendra pas disponible."
+    )
+
+    if (!confirmed) return
+
+    setLoading(true)
+    setError("")
+    setMessage("")
+
+    try {
+      const response = await fetch("/api/enveloppes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "cancel_payment",
+          paymentId: cancellingPaymentId,
+          reason: cancelPaymentReason,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Impossible d'annuler le paiement.")
+      }
+
+      setMessage(payload.message || "Paiement annule.")
+      cancelCancelPayment()
+      await loadData()
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : "Erreur lors de l'annulation du paiement."
+
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function submitPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -673,6 +749,53 @@ export default function EnveloppesPage() {
             <button
               type="button"
               onClick={cancelEditPayment}
+              className="rounded-xl bg-gray-200 px-5 py-3 font-bold text-gray-800 hover:bg-gray-300"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+
+      {cancellingPaymentId ? (
+        <form
+          onSubmit={submitCancelPayment}
+          className="space-y-4 rounded-2xl border border-red-200 bg-red-50 p-6 shadow"
+        >
+          <div>
+            <h2 className="text-2xl font-bold text-red-800">
+              Annuler un paiement
+            </h2>
+            <p className="text-sm text-gray-700">
+              Cette operation ne supprime pas le paiement. Elle le passe en
+              cancelled, garde le recu utilise et recalcule les totaux.
+            </p>
+            <p className="mt-2 text-sm font-bold text-red-800">
+              {cancelPaymentReceiptInfo} — Montant : {formatAmount(cancelPaymentAmount)}
+            </p>
+          </div>
+
+          <textarea
+            value={cancelPaymentReason}
+            onChange={(event) => setCancelPaymentReason(event.target.value)}
+            placeholder="Motif obligatoire d'annulation"
+            className="min-h-24 w-full rounded-lg border p-3"
+            required
+          />
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-xl bg-red-600 px-5 py-3 font-bold text-white hover:bg-red-700 disabled:bg-gray-400"
+            >
+              {loading ? "Annulation..." : "Confirmer l'annulation"}
+            </button>
+
+            <button
+              type="button"
+              onClick={cancelCancelPayment}
               className="rounded-xl bg-gray-200 px-5 py-3 font-bold text-gray-800 hover:bg-gray-300"
             >
               Annuler
@@ -963,13 +1086,25 @@ export default function EnveloppesPage() {
                       : "-"}
                   </p>
 
-                  <button
-                    type="button"
-                    onClick={() => startEditPayment(payment)}
-                    className="mt-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
-                  >
-                    Modifier paiement
-                  </button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => startEditPayment(payment)}
+                      className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
+                    >
+                      Modifier paiement
+                    </button>
+
+                    {payment.status === "active" ? (
+                      <button
+                        type="button"
+                        onClick={() => startCancelPayment(payment)}
+                        className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+                      >
+                        Annuler paiement
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ))}
