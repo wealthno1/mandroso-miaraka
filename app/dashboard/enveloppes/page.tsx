@@ -165,6 +165,10 @@ export default function EnveloppesPage() {
   const [cancelPaymentReceiptInfo, setCancelPaymentReceiptInfo] = useState("")
   const [cancelPaymentReason, setCancelPaymentReason] = useState("")
 
+  const [foanaReceiptNumber, setFoanaReceiptNumber] = useState("")
+  const [foanaResponsibleName, setFoanaResponsibleName] = useState("")
+  const [foanaReason, setFoanaReason] = useState("")
+
   async function loadData() {
     setLoadingList(true)
     setError("")
@@ -225,6 +229,11 @@ export default function EnveloppesPage() {
   const receiptBookPreview = useMemo(
     () => getReceiptBookPreview(receiptNumber),
     [receiptNumber]
+  )
+
+  const foanaReceiptBookPreview = useMemo(
+    () => getReceiptBookPreview(foanaReceiptNumber),
+    [foanaReceiptNumber]
   )
 
   async function submitEnvelope(event: FormEvent<HTMLFormElement>) {
@@ -490,6 +499,59 @@ export default function EnveloppesPage() {
         submitError instanceof Error
           ? submitError.message
           : "Erreur lors de l'annulation du paiement."
+
+      setError(message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  async function submitFoanaReceipt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (loading) return
+
+    const confirmed = window.confirm(
+      "Confirmer que ce recu est FOANA ? Aucun paiement ne sera cree et ce recu ne pourra plus etre utilise."
+    )
+
+    if (!confirmed) return
+
+    setLoading(true)
+    setError("")
+    setMessage("")
+
+    try {
+      const response = await fetch("/api/enveloppes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "mark_receipt_foana",
+          receiptNumber: foanaReceiptNumber,
+          responsibleName: foanaResponsibleName,
+          reason: foanaReason,
+        }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Impossible de marquer le recu FOANA.")
+      }
+
+      setMessage(payload.message || "Recu marque FOANA.")
+      setFoanaReceiptNumber("")
+      setFoanaResponsibleName("")
+      setFoanaReason("")
+      await loadData()
+    } catch (submitError) {
+      const message =
+        submitError instanceof Error
+          ? submitError.message
+          : "Erreur lors du marquage FOANA."
 
       setError(message)
     } finally {
@@ -864,6 +926,57 @@ export default function EnveloppesPage() {
             className="rounded-xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-700 disabled:bg-gray-400"
           >
             {loading ? "Enregistrement..." : "Ajouter l'enveloppe"}
+          </button>
+        </form>
+
+
+        <form
+          onSubmit={submitFoanaReceipt}
+          className="space-y-4 rounded-2xl bg-white p-6 shadow"
+        >
+          <div>
+            <h2 className="text-2xl font-bold">Recu FOANA</h2>
+            <p className="text-sm text-gray-600">
+              A utiliser pour un recu abime, perdu ou inutilisable avant paiement.
+              Aucun paiement ne sera cree.
+            </p>
+          </div>
+
+          <input
+            value={foanaReceiptNumber}
+            onChange={(event) => setFoanaReceiptNumber(event.target.value)}
+            placeholder="Numero recu FOANA ex: 004"
+            className="w-full rounded-lg border p-3"
+            required
+          />
+
+          {foanaReceiptBookPreview ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+              {foanaReceiptBookPreview}
+            </div>
+          ) : null}
+
+          <input
+            value={foanaResponsibleName}
+            onChange={(event) => setFoanaResponsibleName(event.target.value)}
+            placeholder="Responsable du carnet"
+            className="w-full rounded-lg border p-3"
+          />
+
+          <textarea
+            value={foanaReason}
+            onChange={(event) => setFoanaReason(event.target.value)}
+            placeholder="Motif obligatoire FOANA"
+            className="min-h-24 w-full rounded-lg border p-3"
+            required
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-xl bg-red-700 px-5 py-3 font-bold text-white hover:bg-red-800 disabled:bg-gray-400"
+          >
+            {loading ? "Enregistrement..." : "Marquer recu FOANA"}
           </button>
         </form>
 

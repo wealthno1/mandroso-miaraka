@@ -60,12 +60,20 @@ type CancelPaymentRequest = {
   reason?: string
 }
 
+type MarkReceiptFoanaRequest = {
+  action: "mark_receipt_foana"
+  receiptNumber?: string
+  responsibleName?: string
+  reason?: string
+}
+
 type RequestBody =
   | CreateEnvelopeRequest
   | CreatePaymentRequest
   | UpdateEnvelopeRequest
   | UpdatePaymentRequest
   | CancelPaymentRequest
+  | MarkReceiptFoanaRequest
 
 function getCampaignId() {
   return process.env.IRAY_VOLANA_CAMPAIGN_ID
@@ -545,6 +553,156 @@ export async function POST(request: Request) {
     }
 
 
+
+
+    if (body.action === "mark_receipt_foana") {
+      const receiptNumber = normalizeReceiptNumber(body.receiptNumber)
+      const responsibleName = body.responsibleName?.trim() || ""
+      const reason = body.reason?.trim() || ""
+
+      if (!reason) {
+        return jsonError("Le motif FOANA est obligatoire.", 400)
+      }
+
+      const receiptDisplay = String(receiptNumber).padStart(3, "0")
+      const receiptsPerBook = 25
+      const bookNumber = Math.ceil(receiptNumber / receiptsPerBook)
+      const startReceiptNumber = (bookNumber - 1) * receiptsPerBook + 1
+      const endReceiptNumber = bookNumber * receiptsPerBook
+
+      let bookId = ""
+
+      const { data: existingBook, error: existingBookError } = await supabase
+        .from("receipt_books")
+        .select("id, book_number, start_receipt_number, end_receipt_number")
+        .eq("campaign_id", campaignId)
+        .eq("book_number", bookNumber)
+        .maybeSingle()
+
+      if (existingBookError) {
+        return jsonError(
+          `Impossible de verifier le carnet : ${existingBookError.message}`,
+          500
+        )
+      }
+
+      if (existingBook) {
+        bookId = existingBook.id
+      } else {
+        const { data: newBook, error: newBookError } = await supabase
+          .from("receipt_books")
+          .insert({
+            campaign_id: campaignId,
+            book_number: bookNumber,
+            receipt_count: receiptsPerBook,
+            start_receipt_number: startReceiptNumber,
+            end_receipt_number: endReceiptNumber,
+            responsible_name: responsibleName || "Responsable non precise",
+            assigned_at: new Date().toISOString().slice(0, 10),
+            status: "assigned",
+            created_by: adminUser.email,
+            updated_by: adminUser.email,
+          })
+          .select("id")
+          .single()
+
+        if (newBookError) {
+          return jsonError(
+            `Impossible de creer le carnet : ${newBookError.message}`,
+            400
+          )
+        }
+
+        bookId = newBook.id
+      }
+
+      const { data: existingReceipt, error: existingReceiptError } = await supabase
+        .from("receipt_registry")
+        .select("id, status, receipt_number_display")
+        .eq("campaign_id", campaignId)
+        .eq("receipt_number", receiptNumber)
+        .maybeSingle()
+
+      if (existingReceiptError) {
+        return jsonError(
+          `Impossible de verifier le recu : ${existingReceiptError.message}`,
+          500
+        )
+      }
+
+      if (existingReceipt && existingReceipt.status === "used") {
+        return jsonError(
+          `Le recu ${receiptDisplay} est deja utilise pour un paiement. Il ne peut pas etre marque FOANA.`,
+          400
+        )
+      }
+
+      if (existingReceipt && existingReceipt.status === "foana") {
+        return jsonError(`Le recu ${receiptDisplay} est deja marque FOANA.`, 400)
+      }
+
+      if (existingReceipt && existingReceipt.status === "voided") {
+        return jsonError(`Le recu ${receiptDisplay} est deja voided.`, 400)
+      }
+
+      if (existingReceipt) {
+        const { data: updatedReceipt, error: updateReceiptError } = await supabase
+          .from("receipt_registry")
+          .update({
+            status: "foana",
+            foana_reason: reason,
+            foana_at: new Date().toISOString(),
+            foana_by: adminUser.email,
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingReceipt.id)
+          .select()
+          .single()
+
+        if (updateReceiptError) {
+          return jsonError(
+            `Impossible de marquer le recu FOANA : ${updateReceiptError.message}`,
+            400
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Recu ${receiptDisplay} marque FOANA. Aucun paiement n'a ete cree.`,
+          receipt: updatedReceipt,
+        })
+      }
+
+      const { data: newReceipt, error: newReceiptError } = await supabase
+        .from("receipt_registry")
+        .insert({
+          campaign_id: campaignId,
+          receipt_book_id: bookId,
+          receipt_number: receiptNumber,
+          internal_code: `VF-2026-R-${receiptDisplay}`,
+          status: "foana",
+          foana_reason: reason,
+          foana_at: new Date().toISOString(),
+          foana_by: adminUser.email,
+          created_by: adminUser.email,
+          updated_by: adminUser.email,
+        })
+        .select()
+        .single()
+
+      if (newReceiptError) {
+        return jsonError(
+          `Impossible de creer le recu FOANA : ${newReceiptError.message}`,
+          400
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Recu ${receiptDisplay} marque FOANA. Aucun paiement n'a ete cree.`,
+        receipt: newReceipt,
+      })
+    }
 
     if (body.action === "cancel_payment") {
       const paymentId = body.paymentId?.trim() || ""
