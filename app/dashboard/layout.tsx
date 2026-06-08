@@ -2,6 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import LogoutButton from "./LogoutButton"
+import ModeBanner from "@/app/ModeBanner"
 
 export default async function DashboardLayout({
   children,
@@ -19,7 +20,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <>
+      <ModeBanner />
+      <div className="flex min-h-screen">
       <aside className="flex w-72 flex-col bg-gray-900 p-6 text-white">
         <h2 className="mb-2 text-2xl font-bold">
           Mandroso Miaraka
@@ -51,6 +54,7 @@ export default async function DashboardLayout({
       <main className="flex-1 bg-gray-100 p-10">
         {children}
       </main>
-    </div>
+      </div>
+    </>
   )
 }

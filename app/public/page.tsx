@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import PublicLiveView from "./PublicLiveView"
+import ModeBanner from "@/app/ModeBanner"
 
 export const revalidate = 0
 
@@ -19,5 +20,10 @@ export default async function PublicPage() {
     )
   }
 
-  return <PublicLiveView initialCampaign={campaign} />
+  return (
+    <>
+      <ModeBanner />
+      <PublicLiveView initialCampaign={campaign} />
+    </>
+  )
 }
