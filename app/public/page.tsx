@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import PublicLiveView from "./PublicLiveView"
 
 export const revalidate = 0
 
 export default async function PublicPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const campaignId = process.env.IRAY_VOLANA_CAMPAIGN_ID
 
