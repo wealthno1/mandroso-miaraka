@@ -718,7 +718,7 @@ export async function POST(request: Request) {
 
       const { data: existingPayment, error: existingPaymentError } = await supabase
         .from("faith_envelope_payments")
-        .select("id, campaign_id, envelope_id, amount, status, notes")
+        .select("id, campaign_id, envelope_id, receipt_registry_id, amount, status, notes")
         .eq("id", paymentId)
         .eq("campaign_id", campaignId)
         .maybeSingle()
@@ -763,6 +763,24 @@ export async function POST(request: Request) {
           `Impossible d'annuler le paiement : ${cancelPaymentError.message}`,
           400
         )
+      }
+
+      if (existingPayment.receipt_registry_id) {
+        const { error: voidReceiptError } = await supabase
+          .from("receipt_registry")
+          .update({
+            status: "voided",
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingPayment.receipt_registry_id)
+          .eq("campaign_id", campaignId)
+
+        if (voidReceiptError) {
+          return jsonError(
+            `Paiement annule, mais impossible de marquer le recu comme voided : ${voidReceiptError.message}`,
+            400
+          )
+        }
       }
 
       const { data: refreshedEnvelope } = await supabase
