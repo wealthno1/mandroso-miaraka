@@ -85,6 +85,14 @@ function getReceiptBookPreview(value: string) {
   )})`
 }
 
+function getPaymentReceiptStatusLabel(status: string) {
+  if (status === "used") return "utilise"
+  if (status === "foana") return "FOANA"
+  if (status === "voided") return "voided"
+  if (status === "available") return "disponible"
+  return status
+}
+
 function getReceiptLine(payment: Payment) {
   const receipt = payment.receipt_registry
   const book = receipt?.receipt_book
@@ -133,6 +141,8 @@ export default function EnveloppesPage() {
   const [paymentEnvelopeNumber, setPaymentEnvelopeNumber] = useState("")
   const [amount, setAmount] = useState("")
   const [receiptNumber, setReceiptNumber] = useState("")
+  const [receiptStatusWarning, setReceiptStatusWarning] = useState("")
+  const [checkingReceiptStatus, setCheckingReceiptStatus] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState("cash")
   const [isClosingPayment, setIsClosingPayment] = useState(false)
   const [operatorName, setOperatorName] = useState("")
@@ -248,10 +258,85 @@ export default function EnveloppesPage() {
     [foanaReceiptNumber]
   )
 
+  useEffect(() => {
+    const raw = receiptNumber.trim()
+
+    setReceiptStatusWarning("")
+
+    if (!raw) {
+      setCheckingReceiptStatus(false)
+      return
+    }
+
+    if (!/^[0-9]+$/.test(raw)) {
+      setReceiptStatusWarning("Numero de recu invalide.")
+      setCheckingReceiptStatus(false)
+      return
+    }
+
+    const numericReceiptNumber = Number(raw)
+
+    if (!Number.isInteger(numericReceiptNumber) || numericReceiptNumber <= 0) {
+      setReceiptStatusWarning("Numero de recu invalide.")
+      setCheckingReceiptStatus(false)
+      return
+    }
+
+    let cancelled = false
+
+    setCheckingReceiptStatus(true)
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch("/api/recus", {
+          cache: "no-store",
+        })
+
+        const payload = await response.json()
+
+        if (!response.ok) {
+          throw new Error(payload.error || "Impossible de verifier le recu.")
+        }
+
+        const receipt = (payload.books || [])
+          .flatMap((book: { receipts?: Array<{ receipt_number: number; receipt_number_display: string; status: string }> }) => book.receipts || [])
+          .find((item: { receipt_number: number }) => item.receipt_number === numericReceiptNumber)
+
+        if (cancelled) return
+
+        if (receipt && receipt.status !== "available") {
+          setReceiptStatusWarning(
+            `Le recu ${receipt.receipt_number_display} n'est pas disponible. Statut actuel : ${getPaymentReceiptStatusLabel(receipt.status)}.`
+          )
+        } else {
+          setReceiptStatusWarning("")
+        }
+      } catch {
+        if (!cancelled) {
+          setReceiptStatusWarning("")
+        }
+      } finally {
+        if (!cancelled) {
+          setCheckingReceiptStatus(false)
+        }
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [receiptNumber])
+
   async function submitEnvelope(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (loading) return
+
+    if (receiptStatusWarning) {
+      showError(receiptStatusWarning)
+      return
+    }
 
     setLoading(true)
     setError("")
@@ -1031,6 +1116,18 @@ export default function EnveloppesPage() {
             </div>
           ) : null}
 
+          {checkingReceiptStatus ? (
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm font-bold text-yellow-800">
+              Verification du statut du recu...
+            </div>
+          ) : null}
+
+          {receiptStatusWarning ? (
+            <div className="rounded-lg border-2 border-red-500 bg-red-50 p-3 text-sm font-bold text-red-800">
+              ❌ {receiptStatusWarning}
+            </div>
+          ) : null}
+
           <input
             value={responsibleName}
             onChange={(event) => setResponsibleName(event.target.value)}
@@ -1091,10 +1188,14 @@ export default function EnveloppesPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || checkingReceiptStatus || Boolean(receiptStatusWarning)}
             className="rounded-xl bg-green-600 px-5 py-3 font-bold text-white hover:bg-green-700 disabled:bg-gray-400"
           >
-            {loading ? "Enregistrement..." : "Saisir le paiement"}
+            {checkingReceiptStatus
+              ? "Verification recu..."
+              : loading
+                ? "Enregistrement..."
+                : "Saisir le paiement"}
           </button>
         </form>
       </div>
