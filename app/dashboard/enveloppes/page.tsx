@@ -192,7 +192,7 @@ export default function EnveloppesPage() {
           ? loadError.message
           : "Erreur de chargement des enveloppes."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoadingList(false)
     }
@@ -201,6 +201,18 @@ export default function EnveloppesPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  function showError(errorMessage: string) {
+    setError(errorMessage)
+
+    if (typeof window !== "undefined") {
+      window.alert(`❌ ${errorMessage}`)
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      })
+    }
+  }
 
   const filteredEnvelopes = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -283,7 +295,7 @@ export default function EnveloppesPage() {
           ? submitError.message
           : "Erreur lors de l'ajout de l'enveloppe."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -356,7 +368,7 @@ export default function EnveloppesPage() {
           ? submitError.message
           : "Erreur lors de la modification de l'enveloppe."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -429,7 +441,7 @@ export default function EnveloppesPage() {
           ? submitError.message
           : "Erreur lors de la modification du paiement."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -438,7 +450,7 @@ export default function EnveloppesPage() {
 
   function startCancelPayment(payment: Payment) {
     if (payment.status !== "active") {
-      setError("Seul un paiement actif peut etre annule.")
+      showError("Seul un paiement actif peut etre annule.")
       return
     }
 
@@ -500,7 +512,7 @@ export default function EnveloppesPage() {
           ? submitError.message
           : "Erreur lors de l'annulation du paiement."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -553,7 +565,7 @@ export default function EnveloppesPage() {
           ? submitError.message
           : "Erreur lors du marquage FOANA."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -611,7 +623,7 @@ export default function EnveloppesPage() {
           ? submitError.message
           : "Erreur lors de la saisie du paiement."
 
-      setError(message)
+      showError(message)
     } finally {
       setLoading(false)
     }
@@ -634,8 +646,8 @@ export default function EnveloppesPage() {
       ) : null}
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
-          {error}
+        <div className="sticky top-16 z-30 rounded-xl border-2 border-red-500 bg-red-50 p-5 text-lg font-bold text-red-800 shadow-lg">
+          ❌ {error}
         </div>
       ) : null}
 
