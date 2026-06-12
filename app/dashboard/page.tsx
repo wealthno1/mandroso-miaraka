@@ -1,12 +1,18 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
-  const { data: campaign } = await supabase
-    .from("campaigns")
-    .select("*")
-    .single()
+  const campaignId = process.env.IRAY_VOLANA_CAMPAIGN_ID
+
+  const campaignQuery = supabase.from("campaigns").select("*")
+
+  const { data: campaign } = campaignId
+    ? await campaignQuery.eq("id", campaignId).maybeSingle()
+    : await campaignQuery
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
   if (!campaign) {
     return (
