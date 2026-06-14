@@ -483,6 +483,19 @@ export async function POST(request: Request) {
         .single()
 
       if (error) {
+        const message = error.message || ""
+
+        if (
+          error.code === "23505" ||
+          message.includes("faith_envelopes_campaign_envelope_number_unique") ||
+          message.toLowerCase().includes("duplicate key")
+        ) {
+          return jsonError(
+            `Cette enveloppe ${envelopeNumber} existe deja. Ne la recreez pas. Utilisez "Saisir un paiement" pour ajouter de l'argent sur cette enveloppe, ou "Modifier" pour corriger le nom / telephone.`,
+            409
+          )
+        }
+
         return jsonError(`Impossible d'ajouter l'enveloppe : ${error.message}`, 400)
       }
 

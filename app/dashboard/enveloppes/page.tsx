@@ -333,11 +333,6 @@ export default function EnveloppesPage() {
 
     if (loading) return
 
-    if (receiptStatusWarning) {
-      showError(receiptStatusWarning)
-      return
-    }
-
     setLoading(true)
     setError("")
     setMessage("")
@@ -660,6 +655,11 @@ export default function EnveloppesPage() {
     event.preventDefault()
 
     if (loading) return
+
+    if (receiptStatusWarning) {
+      showError(receiptStatusWarning)
+      return
+    }
 
     setLoading(true)
     setError("")
