@@ -29,7 +29,7 @@ const CATEGORY_ROWS = [
   { key: "VOLAMENA", label: "Or / Volamena" },
   { key: "PLATININA", label: "Platine / Platinina" },
   { key: "DIAMONDRA", label: "Diamant / Diamondra" },
-  { key: "NON_CATEGORISEE", label: "Non cat�goris�e" },
+  { key: "NON_CATEGORISEE", label: "Non catégorisée" },
 ]
 
 function formatAmount(amount: number) {
