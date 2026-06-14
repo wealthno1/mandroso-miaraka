@@ -23,13 +23,13 @@ type CategoryStat = {
 
 const CATEGORY_ROWS = [
   { key: "VALOPY VY", label: "Fer / Valopy Vy" },
-  { key: "BRONZE", label: "Bronze" },
   { key: "VARAHINA", label: "Cuivre / Varahina" },
+  { key: "BRONZE", label: "Bronze" },
   { key: "VOLAFOTSY", label: "Argent / Volafotsy" },
   { key: "VOLAMENA", label: "Or / Volamena" },
   { key: "PLATININA", label: "Platine / Platinina" },
   { key: "DIAMONDRA", label: "Diamant / Diamondra" },
-  { key: "NON_CATEGORISEE", label: "Non catégorisée" },
+  { key: "NON_CATEGORISEE", label: "Non cat�goris�e" },
 ]
 
 function formatAmount(amount: number) {
@@ -160,7 +160,7 @@ export default function CategoriesPage() {
         <div>
           <h1 className="text-4xl font-bold">Catégories d’enveloppes</h1>
           <p className="mt-2 text-gray-600">
-            Synthèse automatique des valopy par catégorie : Fer, Bronze, Cuivre,
+            Synthèse automatique des valopy par catégorie : Fer, Cuivre, Bronze,
             Argent, Or, Platine et Diamant.
           </p>
         </div>
