@@ -143,7 +143,7 @@ export default async function VisuelsPage() {
     "Vokatry ny valopy araka ny sokajy :",
     ...stats
       .filter((row) => row.amount > 0 || row.count > 0)
-      .map((row) => "- " + row.label + " : " + row.count + " valopy � " + formatAmount(row.amount)),
+      .map((row) => "- " + row.label + " : " + row.count + " valopy - " + formatAmount(row.amount)),
     "",
     remainingAmount > 0
       ? "Mbola misy " + formatAmount(remainingAmount) + " sisa hahatratrarana ny tanjona. Raha tarihin'ny Tompo isika dia afaka mbola mandray anjara amin-kalalahana sy amin'ny fo madio."
@@ -221,7 +221,7 @@ export default async function VisuelsPage() {
           </div>
 
           <p className="mt-6 text-sm text-slate-300">
-            Valopy suivies : {totalEnvelopes} � Valopy clôturées : {totalClosed}
+            Valopy suivies : {totalEnvelopes} - Valopy clôturées : {totalClosed}
           </p>
         </div>
       </section>
