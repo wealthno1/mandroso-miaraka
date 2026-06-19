@@ -731,8 +731,16 @@ export default function EnveloppesPage() {
       ) : null}
 
       {error ? (
-        <div className="sticky top-16 z-30 rounded-xl border-2 border-red-500 bg-red-50 p-5 text-lg font-bold text-red-800 shadow-lg">
-          ❌ {error}
+        <div className="sticky top-16 z-30 flex items-start justify-between gap-4 rounded-xl border-2 border-red-500 bg-red-50 p-5 text-lg font-bold text-red-800 shadow-lg">
+          <div>Erreur : {error}</div>
+
+          <button
+            type="button"
+            onClick={() => setError("")}
+            className="rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white hover:bg-red-800"
+          >
+            Fermer
+          </button>
         </div>
       ) : null}
 
