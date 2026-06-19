@@ -29,7 +29,7 @@ const CATEGORY_ROWS = [
   { key: "VOLAMENA", label: "Or / Volamena" },
   { key: "PLATININA", label: "Platine / Platinina" },
   { key: "DIAMONDRA", label: "Diamant / Diamondra" },
-  { key: "NON_CATEGORISEE", label: "Non cat\u00e9goris\u00e9e" },
+  { key: "NON_CATEGORISEE", label: "Non catégorisée" },
 ]
 
 function formatAmount(amount: number) {
@@ -107,7 +107,7 @@ export default async function VisuelsPage() {
     return (
       <main className="p-10">
         <h1 className="text-4xl font-bold">Visuels exportables</h1>
-        <p className="mt-4 text-red-700">Aucune campagne trouv\u00e9e.</p>
+        <p className="mt-4 text-red-700">Aucune campagne trouvée.</p>
       </main>
     )
   }
@@ -150,16 +150,16 @@ export default async function VisuelsPage() {
       : "Isaorana Andriamanitra fa tratra ny tanjona napetraka.",
     "",
     "Ho an'Andriamanitra irery ihany anie ny voninahitra.",
-  ].join("\\n")
+  ].join("\n")
 
   return (
     <main className="space-y-8 p-10">
       <div>
         <h1 className="text-4xl font-bold">Visuels exportables</h1>
         <p className="mt-3 text-gray-600">
-          Cr\u00e9ation rapide de visuels, textes d'annonce et synth\u00e8ses pour projection ou partage.
+          Création rapide de visuels, textes d'annonce et synthèses pour projection ou partage.
         </p>
-        <p className="mt-1 text-sm text-gray-500">Derni\u00e8re actualisation : {today}</p>
+        <p className="mt-1 text-sm text-gray-500">Dernière actualisation : {today}</p>
       </div>
 
       {envelopesError ? (
@@ -175,7 +175,7 @@ export default async function VisuelsPage() {
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow">
-          <p className="text-sm text-gray-600">Collect\u00e9</p>
+          <p className="text-sm text-gray-600">Collecté</p>
           <p className="mt-2 text-2xl font-bold text-green-700">{formatAmount(currentAmount)}</p>
         </div>
 
@@ -221,16 +221,16 @@ export default async function VisuelsPage() {
           </div>
 
           <p className="mt-6 text-sm text-slate-300">
-            Valopy suivies : {totalEnvelopes} � Valopy cl\u00f4tur\u00e9es : {totalClosed}
+            Valopy suivies : {totalEnvelopes} � Valopy clôturées : {totalClosed}
           </p>
         </div>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl bg-white p-6 shadow">
-          <h2 className="text-2xl font-bold">Texte d'annonce pr\u00eat \u00e0 copier</h2>
+          <h2 className="text-2xl font-bold">Texte d'annonce prêt à copier</h2>
           <p className="mt-2 text-sm text-gray-600">
-            Utiliser ce texte pour annonce, WhatsApp ou pr\u00e9sentation orale.
+            Utiliser ce texte pour annonce, WhatsApp ou présentation orale.
           </p>
 
           <textarea
@@ -241,7 +241,7 @@ export default async function VisuelsPage() {
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow">
-          <h2 className="text-2xl font-bold">R\u00e9sum\u00e9 par cat\u00e9gorie</h2>
+          <h2 className="text-2xl font-bold">Résumé par catégorie</h2>
           <p className="mt-2 text-sm text-gray-600">
             Ordre officiel : Fer, Cuivre, Bronze, Argent, Or, Platine, Diamant.
           </p>
@@ -250,9 +250,9 @@ export default async function VisuelsPage() {
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b">
-                  <th className="p-3">Cat\u00e9gorie</th>
+                  <th className="p-3">Catégorie</th>
                   <th className="p-3 text-right">Valopy</th>
-                  <th className="p-3 text-right">Cl\u00f4tur\u00e9es</th>
+                  <th className="p-3 text-right">Clôturées</th>
                   <th className="p-3 text-right">Montant</th>
                 </tr>
               </thead>
@@ -277,8 +277,8 @@ export default async function VisuelsPage() {
       <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-900">
         <h2 className="text-xl font-bold">Conseil d'utilisation</h2>
         <p className="mt-2">
-          Pour projeter le visuel, ouvrir cette page en plein \u00e9cran. Pour imprimer ou exporter,
-          utiliser Ctrl + P, ou faire une capture d'\u00e9cran du bloc bleu.
+          Pour projeter le visuel, ouvrir cette page en plein écran. Pour imprimer ou exporter,
+          utiliser Ctrl + P, ou faire une capture d'écran du bloc bleu.
         </p>
       </section>
     </main>
