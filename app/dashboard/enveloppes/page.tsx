@@ -328,6 +328,15 @@ export default function EnveloppesPage() {
     }
   }, [receiptNumber])
 
+  function clearEnvelopeForm() {
+    setEnvelopeNumber("")
+    setBeneficiaryName("")
+    setPhone("")
+    setDistributedBy("")
+    setIsAnonymous(false)
+    setEnvelopeNotes("")
+  }
+
   async function submitEnvelope(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -370,12 +379,22 @@ export default function EnveloppesPage() {
 
       await loadData()
     } catch (submitError) {
-      const message =
+      const errorMessage =
         submitError instanceof Error
           ? submitError.message
-          : "Erreur lors de l'ajout de l'enveloppe."
+          : "Erreur inconnue pendant l'ajout de l'enveloppe."
 
-      showError(message)
+      showError(errorMessage)
+
+      const lowerErrorMessage = errorMessage.toLowerCase()
+
+      if (
+        lowerErrorMessage.includes("existe") ||
+        lowerErrorMessage.includes("duplicate key") ||
+        lowerErrorMessage.includes("faith_envelopes_campaign_envelope_number_unique")
+      ) {
+        clearEnvelopeForm()
+      }
     } finally {
       setLoading(false)
     }
@@ -736,7 +755,10 @@ export default function EnveloppesPage() {
 
           <button
             type="button"
-            onClick={() => setError("")}
+            onClick={() => {
+              setError("")
+              clearEnvelopeForm()
+            }}
             className="rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white hover:bg-red-800"
           >
             Fermer
