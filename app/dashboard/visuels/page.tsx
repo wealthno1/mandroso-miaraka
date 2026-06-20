@@ -121,6 +121,22 @@ export default async function VisuelsPage() {
     .limit(2000)
 
   const envelopes = Array.isArray(envelopesData) ? (envelopesData as Envelope[]) : []
+
+  const { data: prayersData, error: prayersError } = await supabase
+    .from("faith_envelope_prayers")
+    .select("id, confidentiality")
+    .eq("campaign_id", campaign.id)
+    .limit(5000)
+
+  const prayers = Array.isArray(prayersData) ? prayersData : []
+  const totalPrayerRequests = prayers.length
+  const internalPrayerRequests = prayers.filter(
+    (prayer) => prayer.confidentiality !== "pastor"
+  ).length
+  const pastorPrayerRequests = prayers.filter(
+    (prayer) => prayer.confidentiality === "pastor"
+  ).length
+
   const stats = buildCategoryStats(envelopes)
 
   const targetAmount = Number(campaign.target_amount || 0)
@@ -140,6 +156,11 @@ export default async function VisuelsPage() {
     "Vola voaangona hatreto : " + formatAmount(currentAmount),
     "Fivoarana : " + percent.toFixed(2) + " %",
     "Sisa andrasana : " + formatAmount(remainingAmount),
+    "Sujets de priere recus : " + totalPrayerRequests,
+    "",
+    totalPrayerRequests > 0
+      ? "Nisy ihany koa " + totalPrayerRequests + " fangatahana vavaka voaray. Entintsika am-bavaka ireo fianakaviana sy olona nametraka izany, nefa tsy aseho ampahibemaso ny antsipiriany satria tsiambaratelo."
+      : "Tsy mbola misy fangatahana vavaka voaray.",
     "",
     "Vokatry ny valopy araka ny sokajy :",
     ...stats
@@ -169,7 +190,13 @@ export default async function VisuelsPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-4">
+      {prayersError ? (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 font-bold text-red-800">
+          Erreur demandes de priere : {prayersError.message}
+        </div>
+      ) : null}
+
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-2xl bg-white p-5 shadow">
           <p className="text-sm text-gray-600">Objectif</p>
           <p className="mt-2 text-2xl font-bold">{formatAmount(targetAmount)}</p>
@@ -188,6 +215,16 @@ export default async function VisuelsPage() {
         <div className="rounded-2xl bg-white p-5 shadow">
           <p className="text-sm text-gray-600">Progression</p>
           <p className="mt-2 text-2xl font-bold">{percent.toFixed(2)} %</p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 shadow">
+          <p className="text-sm text-gray-600">Sujets de priere</p>
+          <p className="mt-2 text-2xl font-bold text-purple-700">
+            {totalPrayerRequests}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            Interne : {internalPrayerRequests} | Pasteur : {pastorPrayerRequests}
+          </p>
         </div>
       </section>
 
@@ -222,7 +259,7 @@ export default async function VisuelsPage() {
           </div>
 
           <p className="mt-6 text-sm text-slate-300">
-            Valopy suivies : {totalEnvelopes} - Valopy clôturées : {totalClosed}
+            Valopy suivies : {totalEnvelopes} - Valopy cloturees : {totalClosed} - Sujets de priere : {totalPrayerRequests}
           </p>
         </div>
       </section>
