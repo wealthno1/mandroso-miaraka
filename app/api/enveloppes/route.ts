@@ -340,6 +340,7 @@ export async function GET() {
 
     type PaymentRow = {
       id: string
+      envelope_id: string | null
       receipt_registry_id: string | null
       [key: string]: unknown
     }
@@ -360,6 +361,18 @@ export async function GET() {
     }
 
     const paymentRows = (payments ?? []) as unknown as PaymentRow[]
+
+    const envelopesById = new Map<
+      string,
+      {
+        id: string
+        envelope_number: number | null
+      }
+    >(
+      ((envelopes ?? []) as unknown as Array<{ id: string; envelope_number: number | null }>).map(
+        (envelope) => [envelope.id, envelope]
+      )
+    )
 
     const paymentIds = paymentRows.map((payment) => payment.id)
 
@@ -458,6 +471,9 @@ export async function GET() {
 
     const enrichedPayments = paymentRows.map((payment) => ({
       ...payment,
+      envelope: payment.envelope_id
+        ? envelopesById.get(payment.envelope_id) ?? null
+        : null,
       prayer_request: prayersByPaymentId.get(payment.id) ?? null,
       receipt_registry: payment.receipt_registry_id
         ? receiptsById.get(payment.receipt_registry_id) ?? null

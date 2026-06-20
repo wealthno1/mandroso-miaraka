@@ -25,10 +25,14 @@ type Payment = {
   operator_name: string | null
   notes?: string | null
   is_closing_payment?: boolean | null
+  envelope?: {
+    envelope_number: number | null
+  } | null
   receipt_registry?: {
     receipt_number: number | null
     receipt_number_display: string | null
     status: string | null
+    responsible_name?: string | null
     receipt_book?: {
       book_number: number | null
       responsible_name: string | null
@@ -93,6 +97,20 @@ function getPaymentReceiptStatusLabel(status: string) {
   return status
 }
 
+function formatEnvelopeNumber(value: number | string | null | undefined) {
+  const numberValue = Number(value)
+
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    return "-"
+  }
+
+  return String(numberValue).padStart(3, "0")
+}
+
+function getEnvelopeLine(payment: Payment) {
+  return `Enveloppe no ${formatEnvelopeNumber(payment.envelope?.envelope_number)}`
+}
+
 function getReceiptLine(payment: Payment) {
   const receipt = payment.receipt_registry
   const book = receipt?.receipt_book
@@ -107,9 +125,11 @@ function getReceiptLine(payment: Payment) {
 }
 
 function getReceiptResponsibleLine(payment: Payment) {
-  const responsible = payment.receipt_registry?.receipt_book?.responsible_name
+  const responsible =
+    payment.receipt_registry?.responsible_name ||
+    payment.receipt_registry?.receipt_book?.responsible_name
 
-  return `Responsable carnet : ${responsible || "-"}`
+  return `Responsable recu : ${responsible || "-"}`
 }
 
 function normalizeEnvelopeInput(value: string) {
@@ -500,7 +520,7 @@ export default function EnveloppesPage() {
     setEditPaymentNotes(payment.notes || "")
     setEditPaymentIsClosingPayment(Boolean(payment.is_closing_payment))
     setEditPaymentReason("")
-    setEditPaymentReceiptInfo(getReceiptLine(payment))
+    setEditPaymentReceiptInfo(`${getEnvelopeLine(payment)} - ${getReceiptLine(payment)}`)
 
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -579,7 +599,7 @@ export default function EnveloppesPage() {
 
     setCancellingPaymentId(payment.id)
     setCancelPaymentAmount(String(payment.amount || ""))
-    setCancelPaymentReceiptInfo(getReceiptLine(payment))
+    setCancelPaymentReceiptInfo(`${getEnvelopeLine(payment)} - ${getReceiptLine(payment)}`)
     setCancelPaymentReason("")
 
     window.scrollTo({ top: 0, behavior: "smooth" })
