@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import VisualActions from "./VisualActions"
 
 export const dynamic = "force-dynamic"
 
@@ -238,6 +239,8 @@ export default async function VisuelsPage() {
             value={announcementText}
             className="mt-4 h-96 w-full rounded-xl border p-4 font-mono text-sm"
           />
+
+          <VisualActions text={announcementText} />
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow">
