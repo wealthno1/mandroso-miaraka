@@ -1406,6 +1406,9 @@ export default function EnveloppesPage() {
                 </div>
 
                 <div className="text-sm text-gray-600">
+                  <p className="font-semibold text-gray-800">
+                    {getEnvelopeLine(payment)}
+                  </p>
                   <p>{getReceiptLine(payment)}</p>
                   <p>{getReceiptResponsibleLine(payment)}</p>
                   <p>
