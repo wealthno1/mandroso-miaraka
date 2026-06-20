@@ -164,6 +164,10 @@ export default function EnveloppesPage() {
   const [editPaymentAmount, setEditPaymentAmount] = useState("")
   const [editPaymentMethod, setEditPaymentMethod] = useState("cash")
   const [editPaymentOperatorName, setEditPaymentOperatorName] = useState("")
+  const [editPaymentResponsibleName, setEditPaymentResponsibleName] = useState("")
+  const [editPaymentPrayerText, setEditPaymentPrayerText] = useState("")
+  const [editPaymentConfidentiality, setEditPaymentConfidentiality] =
+    useState("internal")
   const [editPaymentNotes, setEditPaymentNotes] = useState("")
   const [editPaymentIsClosingPayment, setEditPaymentIsClosingPayment] =
     useState(false)
@@ -479,6 +483,20 @@ export default function EnveloppesPage() {
     setEditPaymentAmount(String(payment.amount || ""))
     setEditPaymentMethod(payment.payment_method || "cash")
     setEditPaymentOperatorName(payment.operator_name || "")
+
+    const paymentAny = payment as any
+    setEditPaymentResponsibleName(
+      paymentAny.receipt_registry?.responsible_name ||
+        paymentAny.receipt_registry?.receipt_book?.responsible_name ||
+        ""
+    )
+    setEditPaymentPrayerText(paymentAny.prayer_request?.prayer_text || "")
+    setEditPaymentConfidentiality(
+      paymentAny.prayer_request?.confidentiality === "pastor"
+        ? "pastor"
+        : "internal"
+    )
+
     setEditPaymentNotes(payment.notes || "")
     setEditPaymentIsClosingPayment(Boolean(payment.is_closing_payment))
     setEditPaymentReason("")
@@ -492,6 +510,9 @@ export default function EnveloppesPage() {
     setEditPaymentAmount("")
     setEditPaymentMethod("cash")
     setEditPaymentOperatorName("")
+    setEditPaymentResponsibleName("")
+    setEditPaymentPrayerText("")
+    setEditPaymentConfidentiality("internal")
     setEditPaymentNotes("")
     setEditPaymentIsClosingPayment(false)
     setEditPaymentReason("")
@@ -519,7 +540,10 @@ export default function EnveloppesPage() {
           amount: Number(editPaymentAmount),
           paymentMethod: editPaymentMethod,
           operatorName: editPaymentOperatorName,
+          responsibleName: editPaymentResponsibleName,
           notes: editPaymentNotes,
+          prayerText: editPaymentPrayerText,
+          confidentiality: editPaymentConfidentiality,
           isClosingPayment: editPaymentIsClosingPayment,
           reason: editPaymentReason,
         }),
@@ -899,6 +923,35 @@ export default function EnveloppesPage() {
               className="w-full rounded-lg border p-3"
             />
           </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <input
+              value={editPaymentResponsibleName}
+              onChange={(event) =>
+                setEditPaymentResponsibleName(event.target.value)
+              }
+              placeholder="Responsable carnet / recu"
+              className="w-full rounded-lg border p-3"
+            />
+
+            <select
+              value={editPaymentConfidentiality}
+              onChange={(event) =>
+                setEditPaymentConfidentiality(event.target.value)
+              }
+              className="w-full rounded-lg border p-3"
+            >
+              <option value="internal">Priere interne</option>
+              <option value="pastor">Priere pasteur</option>
+            </select>
+          </div>
+
+          <textarea
+            value={editPaymentPrayerText}
+            onChange={(event) => setEditPaymentPrayerText(event.target.value)}
+            placeholder="Demande de priere oubliee ou a corriger"
+            className="min-h-24 w-full rounded-lg border p-3"
+          />
 
           <textarea
             value={editPaymentNotes}

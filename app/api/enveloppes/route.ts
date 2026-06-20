@@ -51,6 +51,9 @@ type UpdatePaymentRequest = {
   operatorName?: string
   notes?: string
   isClosingPayment?: boolean
+  responsibleName?: string
+  prayerText?: string
+  confidentiality?: string
   reason?: string
 }
 
@@ -347,6 +350,7 @@ export async function GET() {
       receipt_number: number
       receipt_number_display: string
       status: string
+      responsible_name: string | null
     }
 
     type ReceiptBookRow = {
@@ -356,6 +360,37 @@ export async function GET() {
     }
 
     const paymentRows = (payments ?? []) as unknown as PaymentRow[]
+
+    const paymentIds = paymentRows.map((payment) => payment.id)
+
+    const prayersByPaymentId = new Map<
+      string,
+      {
+        id: string
+        payment_id: string
+        prayer_text: string | null
+        confidentiality: string | null
+      }
+    >()
+
+    if (paymentIds.length > 0) {
+      const { data: prayers, error: prayersError } = await supabase
+        .from("faith_envelope_prayers")
+        .select("id, payment_id, prayer_text, confidentiality")
+        .in("payment_id", paymentIds)
+
+      if (prayersError) {
+        return jsonError(
+          `Impossible de charger les demandes de priere : ${prayersError.message}`,
+          500
+        )
+      }
+
+      for (const prayer of prayers ?? []) {
+        prayersByPaymentId.set(prayer.payment_id, prayer)
+      }
+    }
+
     const receiptIds = Array.from(
       new Set(
         paymentRows
@@ -372,7 +407,7 @@ export async function GET() {
     if (receiptIds.length > 0) {
       const { data: receipts, error: receiptsError } = await supabase
         .from("receipt_registry")
-        .select("id, receipt_book_id, receipt_number, receipt_number_display, status")
+        .select("id, receipt_book_id, receipt_number, receipt_number_display, status, responsible_name")
         .in("id", receiptIds)
 
       if (receiptsError) {
@@ -423,6 +458,7 @@ export async function GET() {
 
     const enrichedPayments = paymentRows.map((payment) => ({
       ...payment,
+      prayer_request: prayersByPaymentId.get(payment.id) ?? null,
       receipt_registry: payment.receipt_registry_id
         ? receiptsById.get(payment.receipt_registry_id) ?? null
         : null,
@@ -826,6 +862,10 @@ export async function POST(request: Request) {
       const paymentId = body.paymentId?.trim() || ""
       const amount = Number(body.amount)
       const reason = body.reason?.trim() || ""
+      const responsibleName = body.responsibleName?.trim() || ""
+      const prayerText = body.prayerText?.trim() || ""
+      const prayerConfidentiality =
+        body.confidentiality === "pastor" ? "pastor" : "internal"
 
       if (!paymentId) {
         return jsonError("Identifiant paiement manquant.", 400)
@@ -851,7 +891,7 @@ export async function POST(request: Request) {
 
       const { data: existingPayment, error: existingPaymentError } = await supabase
         .from("faith_envelope_payments")
-        .select("id, campaign_id, envelope_id, amount, status")
+        .select("id, campaign_id, envelope_id, receipt_registry_id, amount, status")
         .eq("id", paymentId)
         .eq("campaign_id", campaignId)
         .maybeSingle()
@@ -895,6 +935,92 @@ export async function POST(request: Request) {
           `Impossible de modifier le paiement : ${updatePaymentError.message}`,
           400
         )
+      }
+
+      if (responsibleName && existingPayment.receipt_registry_id) {
+        const { error: receiptResponsibleError } = await supabase
+          .from("receipt_registry")
+          .update({
+            responsible_name: responsibleName,
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingPayment.receipt_registry_id)
+          .eq("campaign_id", campaignId)
+
+        if (receiptResponsibleError) {
+          return jsonError(
+            `Paiement modifie, mais impossible de modifier le responsable du recu : ${receiptResponsibleError.message}`,
+            400
+          )
+        }
+      }
+
+      if (prayerText) {
+        const { data: existingPrayer, error: existingPrayerError } = await supabase
+          .from("faith_envelope_prayers")
+          .select("id")
+          .eq("campaign_id", campaignId)
+          .eq("payment_id", paymentId)
+          .maybeSingle()
+
+        if (existingPrayerError) {
+          return jsonError(
+            `Paiement modifie, mais impossible de verifier la priere : ${existingPrayerError.message}`,
+            400
+          )
+        }
+
+        if (existingPrayer) {
+          const { error: updatePrayerError } = await supabase
+            .from("faith_envelope_prayers")
+            .update({
+              prayer_text: prayerText,
+              confidentiality: prayerConfidentiality,
+            })
+            .eq("id", existingPrayer.id)
+            .eq("campaign_id", campaignId)
+
+          if (updatePrayerError) {
+            return jsonError(
+              `Paiement modifie, mais impossible de modifier la priere : ${updatePrayerError.message}`,
+              400
+            )
+          }
+        } else {
+          const { error: insertPrayerError } = await supabase
+            .from("faith_envelope_prayers")
+            .insert({
+              campaign_id: campaignId,
+              envelope_id: existingPayment.envelope_id,
+              payment_id: paymentId,
+              prayer_text: prayerText,
+              confidentiality: prayerConfidentiality,
+              created_by: adminUser.email,
+            })
+
+          if (insertPrayerError) {
+            return jsonError(
+              `Paiement modifie, mais impossible d'ajouter la priere : ${insertPrayerError.message}`,
+              400
+            )
+          }
+        }
+
+        const { error: markPrayerError } = await supabase
+          .from("faith_envelopes")
+          .update({
+            has_prayer_request: true,
+            updated_by: adminUser.email,
+          })
+          .eq("id", existingPayment.envelope_id)
+          .eq("campaign_id", campaignId)
+
+        if (markPrayerError) {
+          return jsonError(
+            `Priere ajoutee, mais impossible de marquer l'enveloppe : ${markPrayerError.message}`,
+            400
+          )
+        }
       }
 
       const { data: refreshedEnvelope } = await supabase
@@ -1012,6 +1138,7 @@ export async function POST(request: Request) {
         .update({
           status: "used",
           used_at: new Date().toISOString(),
+          responsible_name: body.responsibleName?.trim() || null,
           updated_by: adminUser.email,
         })
         .eq("id", receipt.id)
